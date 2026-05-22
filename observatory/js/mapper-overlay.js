@@ -27,7 +27,7 @@ export class MapperOverlay {
   constructor(observatory) {
     this._obs = observatory;
     this._state = {
-      open: false,
+      open: true,
       mode: 'scan',
       scan: { active: false, samples: [], marks: [] },
       map: { draft: null, final: null, selectedRoomId: null, drag: null },
