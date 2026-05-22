@@ -117,6 +117,7 @@ class Observatory {
     this._buildParticleTrail();
     this._buildWifiWaves();
     this._buildSignalField();
+    this._buildSpatialMap();
 
     // Post-processing
     this._postProcessing = new PostProcessing(this._renderer, this._scene, this._camera);
@@ -396,6 +397,128 @@ class Observatory {
     });
     this._fieldPoints = new THREE.Points(geo, this._fieldMat);
     this._scene.add(this._fieldPoints);
+  }
+
+  _buildSpatialMap() {
+    this._spatialMapGroup = new THREE.Group();
+    this._spatialMapGroup.visible = false;
+    this._scene.add(this._spatialMapGroup);
+    this._spatialMapRooms = [];
+    this._spatialRouter = null;
+    this._spatialTracker = null;
+  }
+
+  _syncSpatialMap(sceneState) {
+    const map = sceneState?.map;
+    const tracking = sceneState?.tracking;
+    if (!map) {
+      this._spatialMapGroup.visible = false;
+      return;
+    }
+
+    this._spatialMapGroup.visible = true;
+    while (this._spatialMapRooms.length < map.rooms.length) {
+      const group = new THREE.Group();
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(1, 1, 1),
+        new THREE.MeshStandardMaterial({
+          color: 0xffb020,
+          transparent: true,
+          opacity: 0.16,
+          emissive: 0xffb020,
+          emissiveIntensity: 0.08,
+          roughness: 0.55,
+          metalness: 0.08,
+        })
+      );
+      const edges = new THREE.LineSegments(
+        new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1)),
+        new THREE.LineBasicMaterial({ color: 0xffd9a0, transparent: true, opacity: 0.38 })
+      );
+      group.add(mesh);
+      group.add(edges);
+      group.userData.mesh = mesh;
+      group.userData.edges = edges;
+      this._spatialMapGroup.add(group);
+      this._spatialMapRooms.push(group);
+    }
+
+    this._spatialMapRooms.forEach((group, index) => {
+      const room = map.rooms[index];
+      if (!room) {
+        group.visible = false;
+        return;
+      }
+      group.visible = true;
+      const x = this._mapToWorldX(room.x + room.w / 2, map.apartment);
+      const z = this._mapToWorldZ(room.y + room.h / 2, map.apartment);
+      const w = (room.w / map.apartment.w) * 12;
+      const d = (room.h / map.apartment.h) * 10;
+      const h = 1.2 + (room.h / map.apartment.h) * 1.7;
+      group.position.set(x, h / 2, z);
+      group.scale.set(w, h, d);
+      const active = tracking?.roomId === room.id;
+      group.userData.mesh.material.color.set(active ? 0x3eff8a : 0xffb020);
+      group.userData.mesh.material.emissive.set(active ? 0x3eff8a : 0xffb020);
+      group.userData.mesh.material.opacity = active ? 0.24 : 0.14;
+      group.userData.edges.material.color.set(active ? 0x94ffc0 : 0xffd9a0);
+      group.userData.edges.material.opacity = active ? 0.72 : 0.38;
+    });
+
+    if (!this._spatialRouter) {
+      const router = new THREE.Group();
+      const core = new THREE.Mesh(
+        new THREE.SphereGeometry(0.18, 16, 16),
+        new THREE.MeshBasicMaterial({ color: 0xffb020 })
+      );
+      const halo = new THREE.Mesh(
+        new THREE.SphereGeometry(0.38, 16, 16),
+        new THREE.MeshBasicMaterial({
+          color: 0xffb020,
+          transparent: true,
+          opacity: 0.12,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        })
+      );
+      router.add(core);
+      router.add(halo);
+      this._spatialMapGroup.add(router);
+      this._spatialRouter = router;
+    }
+
+    if (map.router) {
+      this._spatialRouter.visible = true;
+      this._spatialRouter.position.set(
+        this._mapToWorldX(map.router.x, map.apartment),
+        0.38,
+        this._mapToWorldZ(map.router.y, map.apartment)
+      );
+    }
+
+    if (!this._spatialTracker) {
+      this._spatialTracker = new THREE.Mesh(
+        new THREE.SphereGeometry(0.22, 20, 20),
+        new THREE.MeshBasicMaterial({ color: 0x00d878 })
+      );
+      this._spatialMapGroup.add(this._spatialTracker);
+    }
+    this._spatialTracker.visible = Boolean(tracking?.active && tracking?.roomId);
+    if (this._spatialTracker.visible) {
+      this._spatialTracker.position.set(
+        this._mapToWorldX(tracking.x, map.apartment),
+        0.26,
+        this._mapToWorldZ(tracking.y, map.apartment)
+      );
+    }
+  }
+
+  _mapToWorldX(x, apartment) {
+    return ((x - apartment.x) / apartment.w - 0.5) * 12;
+  }
+
+  _mapToWorldZ(y, apartment) {
+    return ((y - apartment.y) / apartment.h - 0.5) * 10;
   }
 
   // ---- Keyboard ----
@@ -684,6 +807,7 @@ class Observatory {
     this._hud.updateHUD(data, this._demoData);
     this._hud.updateSparkline(data);
     this._mapper.update(data);
+    this._syncSpatialMap(this._mapper.getSceneState());
 
     // Router LED
     this._routerLed.material.opacity = 0.5 + 0.5 * Math.sin(elapsed * 8);

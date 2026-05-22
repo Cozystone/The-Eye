@@ -785,6 +785,14 @@ export class MapperOverlay {
         map: { ...this._state.map, ...(parsed.map || {}) },
         tracking: { ...this._state.tracking, ...(parsed.tracking || {}) },
       };
+      this._state.open = true;
     } catch {}
+  }
+
+  getSceneState() {
+    return {
+      map: this._state.map.final || this._state.map.draft,
+      tracking: this._state.tracking,
+    };
   }
 }
