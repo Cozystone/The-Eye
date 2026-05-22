@@ -82,10 +82,10 @@ def root() -> HTMLResponse:
           --panel: rgba(2, 6, 23, 0.72);
           --panel-strong: rgba(2, 6, 23, 0.86);
           --panel-border: rgba(148, 163, 184, 0.16);
-          --ink: #e2e8f0;
-          --muted: #94a3b8;
-          --accent: #f59e0b;
-          --accent-2: #fb7185;
+          --ink: #ffffff;
+          --muted: #d4d4d8;
+          --accent: #ffffff;
+          --accent-2: #e5e7eb;
         }
         * { box-sizing: border-box; }
         body { margin: 0; font-family: Arial, sans-serif; color: var(--ink); background: #020617; }
@@ -105,7 +105,7 @@ def root() -> HTMLResponse:
         }
         .brandline {
           display: inline-flex; align-items: center; gap: 8px;
-          color: #fdba74; font-size: 12px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+          color: #ffffff; font-size: 12px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
         }
         .brandblock strong { display: block; font-size: 28px; line-height: 0.95; margin-top: 6px; }
         .brandblock span { display: block; color: var(--muted); font-size: 14px; margin-top: 8px; }
@@ -130,7 +130,7 @@ def root() -> HTMLResponse:
           display: inline-flex; align-items: center; justify-content: center;
           padding: 16px 18px; border-radius: 14px; font-weight: 700;
         }
-        .search button { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #111827; min-width: 138px; }
+        .search button { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #020617; min-width: 138px; }
         .actions { display: flex; gap: 10px; flex-wrap: wrap; margin: 6px 0 24px; }
         a.btn.secondary { background: rgba(15, 23, 42, 0.86); color: var(--ink); border: 1px solid rgba(148, 163, 184, 0.14); }
         .stats {
@@ -164,44 +164,44 @@ def root() -> HTMLResponse:
       <div class="panel">
         <div class="topbar">
           <div class="brandblock">
-            <div class="brandline">Satellite Workspace</div>
+            <div class="brandline">위성 워크스페이스</div>
             <strong>The Eye</strong>
-            <span>Map-first public signal desk</span>
+            <span>지도를 중심으로 보는 공개 신호 분석 화면</span>
           </div>
-          <a class="btn secondary" href="/demo">Launch Demo</a>
+          <a class="btn secondary" href="/demo">데모 열기</a>
         </div>
         <div class="shell">
           <h1>The Eye</h1>
           <p class="lead">
-            Map-first public signal workspace. Drop in an Instagram handle, open the subject view, and start from satellite context instead of a generic landing page.
+            인스타그램 아이디를 입력하면 바로 지도 중심 워크스페이스를 열고, 연결 전 프리뷰 또는 저장된 분석 결과를 위성지도 위에서 확인합니다.
           </p>
           <form class="search" action="/lookup" method="get">
             <input type="text" name="handle" placeholder="@instagram_id" value="@citysignals.media" />
-            <button type="submit">Open Map</button>
+            <button type="submit">분석 열기</button>
           </form>
           <div class="actions">
-            <a class="btn secondary" href="/demo">Live Demo</a>
-            <a class="btn secondary" href="/docs">API Docs</a>
+            <a class="btn secondary" href="/demo">라이브 데모</a>
+            <a class="btn secondary" href="/docs">API 문서</a>
             <a class="btn secondary" href="/api">JSON API</a>
           </div>
-          <div class="foot">Health: <a href="/health" style="color:#fdba74;">/health</a></div>
+          <div class="foot">상태 확인: <a href="/health" style="color:#ffffff;">/health</a></div>
         </div>
         <div class="stats">
           <div class="card">
-            <strong>Satellite-first layout</strong>
-            <span>Esri imagery fills the whole viewport from the first paint so the map is the product, not a secondary widget.</span>
+            <strong>전체화면 위성지도</strong>
+            <span>첫 화면부터 지도가 전면에 깔리고, 패널은 위에 떠 있는 방식으로 동작합니다.</span>
           </div>
           <div class="card">
-            <strong>Handle lookup</strong>
-            <span>Input accepts a public handle label and opens a subject workspace immediately. Demo handles are pre-seeded.</span>
+            <strong>핸들 바로 열기</strong>
+            <span>공개 핸들을 넣으면 곧바로 subject 워크스페이스를 엽니다. 데모 핸들은 기본 분석이 시드되어 있습니다.</span>
           </div>
           <div class="card">
-            <strong>Observed signals</strong>
-            <span>Explicit public place tags, posting cadence, linked domains, and visible interaction edges are summarized with provenance.</span>
+            <strong>관측 신호 요약</strong>
+            <span>공개 위치 태그, 게시 패턴, 링크 도메인, 상호작용 엣지를 출처와 함께 정리합니다.</span>
           </div>
           <div class="card">
-            <strong>Fast entry</strong>
-            <span>Use <code>@citysignals.media</code>, <code>@demo</code>, or <code>@sample</code> to open the seeded map view instantly.</span>
+            <strong>즉시 확인</strong>
+            <span><code>@citysignals.media</code>, <code>@demo</code>, <code>@sample</code> 을 넣으면 시드된 지도를 바로 열 수 있습니다.</span>
           </div>
         </div>
       </div>
@@ -399,17 +399,17 @@ def subject_ui(subject_id: str) -> HTMLResponse:
         subject = seed_demo_subject()
         return RedirectResponse(url=f"/ui/subjects/{subject.subject_id}", status_code=307)
     point_rows = "".join(
-        f"<li><strong>{point.label}</strong> ({point.precision}) - {point.observed_count} posts - {point.provenance}</li>"
+        f"<li><strong>{point.label}</strong> ({point.precision.value if hasattr(point.precision, 'value') else point.precision}) - {point.observed_count}건 - {point.provenance}</li>"
         for point in map_data.points
-    ) or "<li>No explicit public location signals yet.</li>"
+    ) or "<li>아직 위치 신호가 없습니다.</li>"
     topic_rows = "".join(
         f"<li>#{topic.topic} <span>({topic.weight})</span></li>"
         for topic in summary.top_topics
-    ) or "<li>No topic signals yet.</li>"
+    ) or "<li>아직 토픽 신호가 없습니다.</li>"
     edge_rows = "".join(
         f"<li>{edge.source} -> {edge.target} [{edge.label}]</li>"
         for edge in graph.edges[:12]
-    ) or "<li>No graph edges yet.</li>"
+    ) or "<li>아직 네트워크 엣지가 없습니다.</li>"
     html = f"""
     <!doctype html>
     <html>
@@ -422,10 +422,10 @@ def subject_ui(subject_id: str) -> HTMLResponse:
           --panel: rgba(2, 6, 23, 0.74);
           --panel-soft: rgba(15, 23, 42, 0.88);
           --stroke: rgba(148, 163, 184, 0.14);
-          --ink: #e2e8f0;
-          --muted: #94a3b8;
-          --accent: #f59e0b;
-          --accent-2: #fb7185;
+          --ink: #ffffff;
+          --muted: #d4d4d8;
+          --accent: #ffffff;
+          --accent-2: #e5e7eb;
         }}
         * {{ box-sizing: border-box; }}
         body {{ font-family: Arial, sans-serif; margin: 0; background: var(--bg); color: var(--ink); }}
@@ -451,7 +451,7 @@ def subject_ui(subject_id: str) -> HTMLResponse:
         }}
         .lookup button {{
           padding: 13px 16px; border-radius: 14px; border: 0;
-          background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #111827; font-weight: 700; cursor: pointer;
+          background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #020617; font-weight: 700; cursor: pointer;
         }}
         .floating {{
           position: absolute; top: 94px; left: 18px; width: min(560px, calc(100vw - 36px));
@@ -471,13 +471,18 @@ def subject_ui(subject_id: str) -> HTMLResponse:
         .hint {{ margin: 10px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }}
         ul {{ padding-left: 18px; }}
         li {{ margin-bottom: 8px; }}
-        a {{ color: #fdba74; }}
+        a {{ color: #ffffff; }}
         .hero-title {{ margin-bottom: 6px; font-size: clamp(28px, 4vw, 42px); line-height: 0.95; }}
         .subtle {{ color: var(--muted); font-size: 14px; line-height: 1.6; }}
         .mini-grid {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }}
         .mini {{ padding: 12px 13px; border-radius: 16px; background: rgba(15, 23, 42, 0.74); border: 1px solid rgba(148, 163, 184, 0.08); }}
-        .mini strong {{ display: block; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #fdba74; margin-bottom: 4px; }}
+        .mini strong {{ display: block; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #ffffff; margin-bottom: 4px; }}
         .mini span {{ color: var(--ink); font-size: 18px; }}
+        .notice {{
+          margin-top: 12px; padding: 12px 14px; border-radius: 14px;
+          background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.12);
+          color: var(--muted); font-size: 13px; line-height: 1.5;
+        }}
         @media (max-width: 980px) {{
           .viewport {{ padding: 14px; }}
           .topbar {{ flex-direction: column; align-items: stretch; border-radius: 18px; }}
@@ -504,11 +509,11 @@ def subject_ui(subject_id: str) -> HTMLResponse:
       <div class="topbar">
         <div class="brand">
           <strong>The Eye</strong>
-          <span>Satellite-first subject workspace</span>
+          <span>위성 지도 기반 subject 워크스페이스</span>
         </div>
         <form class="lookup" action="/lookup" method="get">
           <input type="text" name="handle" placeholder="@instagram_id" value="@{summary.subject.handle}" />
-          <button type="submit">Open</button>
+          <button type="submit">다시 분석</button>
         </form>
       </div>
       <div class="floating">
@@ -516,27 +521,28 @@ def subject_ui(subject_id: str) -> HTMLResponse:
           <h1 class="hero-title">{summary.subject.display_name}</h1>
           <p class="subtle">@{summary.subject.handle}</p>
           <div class="meta">
-            <div class="pill">posts {summary.post_count}</div>
-            <div class="pill">sources {summary.source_count}</div>
-            <div class="pill">relationships {summary.relationship_count}</div>
-            <div class="pill">risks {summary.risk_count}</div>
+            <div class="pill">게시물 {summary.post_count}</div>
+            <div class="pill">소스 {summary.source_count}</div>
+            <div class="pill">관계 {summary.relationship_count}</div>
+            <div class="pill">리스크 {summary.risk_count}</div>
           </div>
-          <p class="hint">Map points reflect explicit public location labels or uploaded subject data already present in the workspace. This demo does not infer hidden private location.</p>
+          <p class="hint">지도 포인트는 현재 워크스페이스에 들어 있는 명시적 위치 태그 또는 업로드된 데이터만 표시합니다. 숨겨진 사적 위치를 추론하지 않습니다.</p>
+          <div class="notice">입력한 핸들에 실제 수집 소스가 아직 연결되지 않은 경우, 화면 작동 확인을 위해 핸들 기반 프리뷰 데이터가 자동 생성될 수 있습니다.</div>
           <div class="mini-grid">
-            <div class="mini"><strong>Signals</strong><span>{summary.public_location_count}</span></div>
-            <div class="mini"><strong>Active Hours</strong><span>{len(summary.active_hours_utc)}</span></div>
-            <div class="mini"><strong>Topics</strong><span>{len(summary.top_topics)}</span></div>
-            <div class="mini"><strong>Domains</strong><span>{len(summary.recurring_domains)}</span></div>
+            <div class="mini"><strong>위치 신호</strong><span>{summary.public_location_count}</span></div>
+            <div class="mini"><strong>활성 시간</strong><span>{len(summary.active_hours_utc)}</span></div>
+            <div class="mini"><strong>토픽</strong><span>{len(summary.top_topics)}</span></div>
+            <div class="mini"><strong>도메인</strong><span>{len(summary.recurring_domains)}</span></div>
           </div>
         </div>
       </div>
       <div class="sidepanel">
         <div class="card">
-          <h2>Top Topics</h2>
+          <h2>상위 토픽</h2>
           <ul>{topic_rows}</ul>
-          <h2>Location Signals</h2>
+          <h2>위치 신호</h2>
           <ul>{point_rows}</ul>
-          <h2>Network Edges</h2>
+          <h2>네트워크 엣지</h2>
           <ul>{edge_rows}</ul>
         </div>
       </div>
@@ -555,9 +561,9 @@ def subject_ui(subject_id: str) -> HTMLResponse:
             const marker = L.circleMarker([point.lat, point.lng], {{
               radius: 8,
               weight: 2,
-              color: '#fb7185',
-              fillColor: '#f97316',
-              fillOpacity: 0.88
+              color: '#ffffff',
+              fillColor: '#f8fafc',
+              fillOpacity: 0.95
             }}).addTo(map);
             marker.bindPopup(`<strong>${{point.label}}</strong><br/>${{point.precision}}<br/>posts: ${{point.observed_count}}<br/>${{point.provenance}}`);
             bounds.push([point.lat, point.lng]);

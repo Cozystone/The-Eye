@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from collections import Counter
+import hashlib
 
 from fastapi import HTTPException, status
 
@@ -638,6 +639,8 @@ def get_or_create_subject_by_handle(handle: str) -> Subject:
     )
     if normalized in {"citysignals.media", "demo", "sample"}:
         _populate_demo_subject(subject.subject_id)
+    else:
+        _populate_preview_subject(subject.subject_id, normalized)
     return subject
 
 
@@ -702,5 +705,67 @@ def _populate_demo_subject(subject_id: str) -> None:
             subject_ids=[subject_id],
             risk_types=[RiskType.LINK_RISK],
         )
+    )
+    analyze_subject(subject_id)
+
+
+def _populate_preview_subject(subject_id: str, handle: str) -> None:
+    if store.subject_sources[subject_id]:
+        return
+
+    digest = hashlib.sha256(handle.encode("utf-8")).digest()
+    palette = [
+        ("서울, KR", "연남", 37.5665, 126.9780),
+        ("부산, KR", "해운대", 35.1796, 129.0756),
+        ("도쿄, JP", "시부야", 35.6762, 139.6503),
+        ("타이베이, TW", "다안", 25.0330, 121.5654),
+        ("싱가포르, SG", "티옹바루", 1.3521, 103.8198),
+    ]
+    topics = ["design", "studio", "travel", "street", "daily", "coffee", "archive", "signals"]
+    base = digest[0] % len(palette)
+    second = (digest[1] + 1) % len(palette)
+    primary = palette[base]
+    secondary = palette[second]
+    mention_a = f"{handle.split('.')[0]}_friends"
+    mention_b = f"{handle.split('.')[0]}_archive"
+    caption_seed = handle.replace(".", " ")
+
+    create_subject_source(
+        subject_id,
+        SubjectSourceCreate(
+            source_kind=SourceKind.MANUAL_NOTE,
+            label="핸들 기반 프리뷰 워크스페이스",
+            source_url=None,
+            description="실제 Instagram 수집 전, 화면 동작 확인을 위한 프리뷰 데이터입니다.",
+            observed_posts=[
+                ObservedPost(
+                    post_id="preview-1",
+                    posted_at=datetime(2026, 5, 20, 9, 20, tzinfo=UTC),
+                    caption=f"{caption_seed} preview #{topics[digest[2] % len(topics)]} #{topics[digest[3] % len(topics)]}",
+                    hashtags=[topics[digest[2] % len(topics)], topics[digest[3] % len(topics)]],
+                    mentions=[mention_a, mention_b],
+                    linked_domains=[f"{handle}.site", "bit.ly/preview-workspace"],
+                    public_location_name=primary[1],
+                    public_location_label=primary[0],
+                    public_location_lat=primary[2],
+                    public_location_lng=primary[3],
+                    language_hint="ko",
+                ),
+                ObservedPost(
+                    post_id="preview-2",
+                    posted_at=datetime(2026, 5, 21, 13, 40, tzinfo=UTC),
+                    caption=f"{caption_seed} notes #{topics[digest[4] % len(topics)]}",
+                    hashtags=[topics[digest[4] % len(topics)]],
+                    mentions=[mention_a],
+                    linked_domains=[f"{handle}.site"],
+                    public_location_name=secondary[1],
+                    public_location_label=secondary[0],
+                    public_location_lat=secondary[2],
+                    public_location_lng=secondary[3],
+                    language_hint="ko",
+                ),
+            ],
+            metadata={"generated_preview": True, "captured_by": "lookup_preview"},
+        ),
     )
     analyze_subject(subject_id)

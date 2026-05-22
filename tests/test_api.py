@@ -299,7 +299,7 @@ def test_root_and_demo_routes() -> None:
     root = client.get("/")
     assert root.status_code == 200
     assert "@instagram_id" in root.text
-    assert "Satellite-first" in root.text
+    assert "위성" in root.text
 
     api_root = client.get("/api")
     assert api_root.status_code == 200
@@ -325,3 +325,8 @@ def test_root_and_demo_routes() -> None:
     stale = client.get("/ui/subjects/subject_e465f1713827", follow_redirects=False)
     assert stale.status_code == 307
     assert stale.headers["location"].startswith("/ui/subjects/subject-citysignals-media")
+
+    preview_lookup = client.get("/lookup?handle=@new_handle", follow_redirects=True)
+    assert preview_lookup.status_code == 200
+    assert "핸들 기반 프리뷰 데이터" in preview_lookup.text
+    assert "게시물 2" in preview_lookup.text
