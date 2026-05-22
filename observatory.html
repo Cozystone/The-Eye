@@ -8,11 +8,11 @@
 </head>
 <body>
   <canvas id="observatory-canvas"></canvas>
-  <section id="radar2d-panel" class="radar2d-panel radar2d-panel--hidden" aria-label="2D RF radar view">
+  <section id="radar2d-panel" class="radar2d-panel radar2d-panel--hidden" aria-label="2D RF contour view">
     <div class="radar2d-header">
       <div>
-        <div class="radar2d-kicker">2D RF Radar</div>
-        <div id="radar2d-status" class="radar2d-status">Waiting for live RF field</div>
+        <div class="radar2d-kicker">2D RF Contour</div>
+        <div id="radar2d-status" class="radar2d-status">Waiting for attenuation field</div>
       </div>
       <div id="radar2d-meta" class="radar2d-meta">GRID 20x20</div>
     </div>
@@ -54,7 +54,7 @@
       </div>
       <div id="scenario-description"></div>
       <div id="fps-counter" style="display:none">60 FPS</div>
-      <button id="view-toggle-btn" class="view-toggle-btn" title="Toggle 2D radar view">2D RADAR</button>
+      <button id="view-toggle-btn" class="view-toggle-btn" title="Toggle 2D contour view">2D RF MAP</button>
       <button id="settings-btn" title="Settings">&#9881;</button>
     </div>
 

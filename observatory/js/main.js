@@ -758,7 +758,7 @@ class Observatory {
     this._radarEls.panel?.classList.toggle('radar2d-panel--hidden', !is2d);
     this._radarEls.toggle?.classList.toggle('view-toggle-btn--active', is2d);
     if (this._radarEls.toggle) {
-      this._radarEls.toggle.textContent = is2d ? '3D VIEW' : '2D RADAR';
+      this._radarEls.toggle.textContent = is2d ? '3D VIEW' : '2D RF MAP';
     }
     this._controls.enabled = !is2d && !this._autopilot;
   }
@@ -1163,103 +1163,135 @@ class Observatory {
     const ctx = canvas.getContext('2d');
     const width = canvas.width;
     const height = canvas.height;
-    const cx = width * 0.5;
-    const cy = height * 0.55;
-    const radius = Math.min(width * 0.38, height * 0.38);
+    const padX = 84;
+    const padY = 76;
+    const innerW = width - padX * 2;
+    const innerH = height - padY * 2;
     const field = Array.isArray(data?.signal_field?.values) ? data.signal_field.values : [];
     const grid = Array.isArray(data?.signal_field?.grid_size) ? data.signal_field.grid_size : [20, 1, 20];
     const gridW = Math.max(1, Number(grid[0] || 20));
     const gridH = Math.max(1, Number(grid[2] || 20));
 
     ctx.clearRect(0, 0, width, height);
-    const bg = ctx.createRadialGradient(cx, cy, radius * 0.08, cx, cy, radius * 1.12);
-    bg.addColorStop(0, 'rgba(10,46,70,0.52)');
-    bg.addColorStop(0.55, 'rgba(5,18,31,0.92)');
+    const bg = ctx.createLinearGradient(0, 0, 0, height);
+    bg.addColorStop(0, 'rgba(6,18,30,0.98)');
     bg.addColorStop(1, 'rgba(2,8,14,1)');
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, width, height);
 
-    ctx.save();
-    ctx.translate(cx, cy);
+    const panelGlow = ctx.createRadialGradient(padX + innerW * 0.18, padY + innerH * 0.18, 0, width * 0.5, height * 0.52, Math.max(innerW, innerH));
+    panelGlow.addColorStop(0, 'rgba(25,92,132,0.18)');
+    panelGlow.addColorStop(1, 'rgba(4,12,20,0)');
+    ctx.fillStyle = panelGlow;
+    ctx.fillRect(padX, padY, innerW, innerH);
 
-    for (let ring = 1; ring <= 5; ring++) {
+    ctx.strokeStyle = 'rgba(110,160,190,0.18)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(padX, padY, innerW, innerH);
+
+    for (let x = 0; x <= gridW; x++) {
+      const gx = padX + (x / gridW) * innerW;
       ctx.beginPath();
-      ctx.strokeStyle = ring === 5 ? 'rgba(120,188,255,0.22)' : 'rgba(62,255,138,0.12)';
-      ctx.lineWidth = 1;
-      ctx.arc(0, 0, radius * (ring / 5), 0, Math.PI * 2);
+      ctx.moveTo(gx, padY);
+      ctx.lineTo(gx, padY + innerH);
+      ctx.strokeStyle = x % 5 === 0 ? 'rgba(90,150,190,0.16)' : 'rgba(90,150,190,0.08)';
       ctx.stroke();
     }
 
-    for (let ray = 0; ray < 12; ray++) {
-      const angle = (Math.PI * 2 * ray) / 12;
+    for (let y = 0; y <= gridH; y++) {
+      const gy = padY + (y / gridH) * innerH;
       ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.lineTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
-      ctx.strokeStyle = 'rgba(100,170,220,0.08)';
-      ctx.lineWidth = 1;
+      ctx.moveTo(padX, gy);
+      ctx.lineTo(padX + innerW, gy);
+      ctx.strokeStyle = y % 5 === 0 ? 'rgba(90,150,190,0.16)' : 'rgba(90,150,190,0.08)';
       ctx.stroke();
     }
+
+    const cellW = innerW / gridW;
+    const cellH = innerH / gridH;
+    const thresholds = [0.18, 0.34, 0.5, 0.66, 0.82];
+    const thresholdColors = [
+      'rgba(55,120,255,0.18)',
+      'rgba(32,144,255,0.22)',
+      'rgba(62,255,138,0.28)',
+      'rgba(255,176,32,0.32)',
+      'rgba(255,86,48,0.34)',
+    ];
+    const toMapX = (x) => padX + (x / Math.max(1, gridW - 1)) * innerW;
+    const toMapY = (y) => padY + (y / Math.max(1, gridH - 1)) * innerH;
+    const sampleAt = (x, y) => Number(field[y * gridW + x] || 0);
 
     for (let z = 0; z < gridH; z++) {
       for (let x = 0; x < gridW; x++) {
         const idx = z * gridW + x;
         const value = Number(field[idx] || 0);
-        if (value <= 0.01) continue;
-        const px = ((x / Math.max(1, gridW - 1)) - 0.5) * radius * 1.6;
-        const py = ((z / Math.max(1, gridH - 1)) - 0.5) * radius * 1.35;
-        const size = 5 + value * 20;
-        const alpha = Math.min(0.94, 0.08 + value * 0.88);
-        const color = value > 0.72
-          ? `rgba(255,176,32,${alpha})`
-          : value > 0.45
-            ? `rgba(62,255,138,${alpha})`
-            : `rgba(32,144,255,${alpha * 0.9})`;
-        ctx.fillStyle = color;
-        ctx.fillRect(px - size * 0.5, py - size * 0.5, size, size);
+        const hue = value > 0.72 ? 24 : value > 0.48 ? 110 : 205;
+        const sat = value > 0.48 ? 90 : 78;
+        const light = 22 + value * 36;
+        const alpha = 0.18 + value * 0.46 + (1 - value) * 0.08;
+        ctx.fillStyle = `hsla(${hue}, ${sat}%, ${light}%, ${alpha})`;
+        ctx.fillRect(padX + x * cellW, padY + z * cellH, cellW + 1, cellH + 1);
       }
     }
 
-    const sweep = (elapsed * 0.95) % (Math.PI * 2);
-    const cone = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
-    cone.addColorStop(0, 'rgba(62,255,138,0.22)');
-    cone.addColorStop(1, 'rgba(62,255,138,0)');
-    ctx.rotate(sweep);
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.arc(0, 0, radius, -0.18, 0.18);
-    ctx.closePath();
-    ctx.fillStyle = cone;
-    ctx.fill();
-    ctx.rotate(-sweep);
+    for (let z = 0; z < gridH - 1; z++) {
+      for (let x = 0; x < gridW - 1; x++) {
+        const v00 = sampleAt(x, z);
+        const v10 = sampleAt(x + 1, z);
+        const v01 = sampleAt(x, z + 1);
+        const v11 = sampleAt(x + 1, z + 1);
+        thresholds.forEach((threshold, level) => {
+          const minV = Math.min(v00, v10, v01, v11);
+          const maxV = Math.max(v00, v10, v01, v11);
+          if (threshold < minV || threshold > maxV) return;
 
-    ctx.beginPath();
-    ctx.strokeStyle = 'rgba(110,255,176,0.85)';
-    ctx.lineWidth = 2;
-    ctx.moveTo(0, 0);
-    ctx.lineTo(Math.cos(sweep) * radius, Math.sin(sweep) * radius);
-    ctx.stroke();
+          const pts = [];
+          if ((v00 >= threshold) !== (v10 >= threshold)) pts.push({ x: toMapX(x + 0.5), y: toMapY(z) });
+          if ((v10 >= threshold) !== (v11 >= threshold)) pts.push({ x: toMapX(x + 1), y: toMapY(z + 0.5) });
+          if ((v01 >= threshold) !== (v11 >= threshold)) pts.push({ x: toMapX(x + 0.5), y: toMapY(z + 1) });
+          if ((v00 >= threshold) !== (v01 >= threshold)) pts.push({ x: toMapX(x), y: toMapY(z + 0.5) });
+          if (pts.length < 2) return;
 
+          ctx.beginPath();
+          ctx.strokeStyle = thresholdColors[level];
+          ctx.lineWidth = threshold >= 0.66 ? 2.2 : 1.2;
+          ctx.moveTo(pts[0].x, pts[0].y);
+          for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+          ctx.stroke();
+        });
+      }
+    }
+
+    const routerX = padX + innerW * 0.14;
+    const routerY = padY + innerH * 0.18;
     ctx.fillStyle = 'rgba(255,176,32,0.95)';
     ctx.beginPath();
-    ctx.arc(-radius * 0.62, -radius * 0.42, 7, 0, Math.PI * 2);
+    ctx.arc(routerX, routerY, 8, 0, Math.PI * 2);
     ctx.fill();
+    ctx.strokeStyle = 'rgba(255,236,214,0.9)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
     ctx.font = '12px JetBrains Mono';
-    ctx.fillText('ROUTER', -radius * 0.55, -radius * 0.46);
+    ctx.fillText('ROUTER', routerX + 14, routerY - 10);
+    ctx.fillStyle = 'rgba(130,180,220,0.88)';
+    ctx.font = '11px JetBrains Mono';
+    ctx.fillText('Open / stronger', padX, padY - 18);
+    ctx.fillText('Attenuated / blocked', padX + 180, padY - 18);
 
     const persons = Array.isArray(data?.persons) ? data.persons : [];
     const tracker = this._mapper?.getSceneState?.()?.tracking;
-    let personX = 0;
-    let personY = 0;
+    let personX = padX + innerW * 0.5;
+    let personY = padY + innerH * 0.55;
     if (tracker?.active) {
       const map = this._mapper?.getSceneState?.()?.map;
       const apartment = map?.apartment;
       if (apartment) {
-        personX = (((tracker.x - apartment.x) / apartment.w) - 0.5) * radius * 1.6;
-        personY = (((tracker.y - apartment.y) / apartment.h) - 0.5) * radius * 1.35;
+        personX = padX + ((tracker.x - apartment.x) / apartment.w) * innerW;
+        personY = padY + ((tracker.y - apartment.y) / apartment.h) * innerH;
       }
     } else if (persons[0]?.position) {
-      personX = (Number(persons[0].position[0] || 0) / 6) * radius;
-      personY = (Number(persons[0].position[2] || 0) / 5) * radius;
+      personX = padX + ((Number(persons[0].position[0] || 0) / 8) + 0.5) * innerW;
+      personY = padY + ((Number(persons[0].position[2] || 0) / 6) + 0.5) * innerH;
     }
     ctx.beginPath();
     ctx.fillStyle = 'rgba(244,255,249,0.96)';
@@ -1271,13 +1303,11 @@ class Observatory {
     ctx.arc(personX, personY, 16, 0, Math.PI * 2);
     ctx.stroke();
 
-    ctx.restore();
-
     const source = String(data?.source || 'wifi');
     const confidence = Math.round(Number(data?.classification?.confidence || 0) * 100);
     const rssi = Number(data?.features?.mean_rssi ?? -100);
-    this._radarEls.status.textContent = `${source} | RSSI ${rssi.toFixed(1)} dBm | confidence ${confidence}%`;
-    this._radarEls.meta.textContent = `GRID ${gridW}x${gridH} | ${data?.rf_visualization?.mode || 'live'} | persons ${Number(data?.estimated_persons || 0)}`;
+    this._radarEls.status.textContent = `${source} | RSSI ${rssi.toFixed(1)} dBm | attenuation contour ${confidence}%`;
+    this._radarEls.meta.textContent = `GRID ${gridW}x${gridH} | ${data?.rf_visualization?.mode || 'live'} | persons ${Number(data?.estimated_persons || 0)} | router-anchored`;
   }
 
   // ---- FPS ----
