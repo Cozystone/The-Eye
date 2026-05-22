@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.models import (
@@ -252,6 +252,25 @@ def health() -> HealthResponse:
     return HealthResponse(status="ok")
 
 
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon() -> HTMLResponse:
+    svg = """
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+      <defs>
+        <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0%" stop-color="#f59e0b" />
+          <stop offset="100%" stop-color="#fb7185" />
+        </linearGradient>
+      </defs>
+      <rect width="64" height="64" rx="16" fill="#020617" />
+      <path d="M10 32c6-10 14-15 22-15s16 5 22 15c-6 10-14 15-22 15S16 42 10 32Z" fill="url(#g)" />
+      <circle cx="32" cy="32" r="8" fill="#020617" />
+      <circle cx="32" cy="32" r="4" fill="#e2e8f0" />
+    </svg>
+    """
+    return HTMLResponse(svg, media_type="image/svg+xml")
+
+
 @app.post("/cases", response_model=Case, responses={400: {"model": ErrorResponse}})
 def post_case(payload: CaseCreate) -> Case:
     return create_case(payload)
@@ -370,9 +389,15 @@ def lookup_handle(handle: str) -> RedirectResponse:
 
 @app.get("/ui/subjects/{subject_id}", response_class=HTMLResponse, responses={404: {"model": ErrorResponse}})
 def subject_ui(subject_id: str) -> HTMLResponse:
-    summary = get_subject_summary(subject_id)
-    map_data = get_subject_map(subject_id)
-    graph = get_subject_graph(subject_id)
+    try:
+        summary = get_subject_summary(subject_id)
+        map_data = get_subject_map(subject_id)
+        graph = get_subject_graph(subject_id)
+    except HTTPException as exc:
+        if exc.status_code != 404:
+            raise
+        subject = seed_demo_subject()
+        return RedirectResponse(url=f"/ui/subjects/{subject.subject_id}", status_code=307)
     point_rows = "".join(
         f"<li><strong>{point.label}</strong> ({point.precision}) - {point.observed_count} posts - {point.provenance}</li>"
         for point in map_data.points

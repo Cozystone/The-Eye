@@ -317,3 +317,11 @@ def test_root_and_demo_routes() -> None:
     lookup = client.get("/lookup?handle=@citysignals.media", follow_redirects=False)
     assert lookup.status_code == 307
     assert lookup.headers["location"].startswith("/ui/subjects/")
+
+    favicon = client.get("/favicon.ico")
+    assert favicon.status_code == 200
+    assert "<svg" in favicon.text
+
+    stale = client.get("/ui/subjects/subject_e465f1713827", follow_redirects=False)
+    assert stale.status_code == 307
+    assert stale.headers["location"].startswith("/ui/subjects/subject-citysignals-media")

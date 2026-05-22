@@ -62,6 +62,13 @@ from app.models import (
 from app.store import store
 
 
+def subject_id_for_handle(handle: str) -> str:
+    normalized = handle.strip().lstrip("@").lower()
+    safe = "".join(ch if ch.isalnum() else "-" for ch in normalized).strip("-")
+    safe = "-".join(part for part in safe.split("-") if part)
+    return f"subject-{safe or 'workspace'}"
+
+
 def require_case(case_id: str) -> Case:
     if case_id not in store.cases:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found")
@@ -319,9 +326,14 @@ def build_report(case_id: str) -> ReportBundle:
 
 
 def create_subject(payload: SubjectCreate) -> Subject:
+    normalized_handle = payload.handle.strip().lstrip("@").lower()
+    subject_id = subject_id_for_handle(normalized_handle)
+    existing = store.subjects.get(subject_id)
+    if existing is not None:
+        return existing
     subject = Subject(
-        subject_id=make_id("subject"),
-        handle=payload.handle,
+        subject_id=subject_id,
+        handle=normalized_handle,
         display_name=payload.display_name,
         subject_type=payload.subject_type,
         processing_basis=payload.processing_basis,
@@ -608,7 +620,7 @@ def get_or_create_subject_by_handle(handle: str) -> Subject:
     if not normalized:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Handle is required")
 
-    existing = next((subject for subject in store.subjects.values() if subject.handle.lower() == normalized), None)
+    existing = store.subjects.get(subject_id_for_handle(normalized))
     if existing is not None:
         if normalized in {"citysignals.media", "demo", "sample"} and not store.subject_sources[existing.subject_id]:
             _populate_demo_subject(existing.subject_id)
