@@ -126,6 +126,22 @@ class Observatory {
     // HUD controller (settings dialog, sparkline, vital displays)
     this._hud = new HudController(this);
     this._mapper = new MapperOverlay(this);
+    this._mobileBridge = {
+      session: null,
+      pollTimer: null,
+      rotateTimer: null,
+      lastJoinedAt: 0,
+      lastMobileEventCount: 0,
+      lastProbeEventId: 0,
+    };
+    this._mobileEls = {
+      panel: document.getElementById('mobile-bridge-panel'),
+      qr: document.getElementById('mobile-bridge-qr'),
+      code: document.getElementById('mobile-bridge-code'),
+      status: document.getElementById('mobile-bridge-status'),
+      hint: document.getElementById('mobile-bridge-hint'),
+    };
+    this._initMobileBridge();
 
     // State
     this._autopilot = false;
@@ -410,106 +426,75 @@ class Observatory {
 
   _syncSpatialMap(sceneState) {
     const map = sceneState?.map;
-    const tracking = sceneState?.tracking;
-    if (!map) {
+    if (!map?.rooms?.length) {
       this._spatialMapGroup.visible = false;
       return;
     }
-
     this._spatialMapGroup.visible = true;
-    while (this._spatialMapRooms.length < map.rooms.length) {
-      const group = new THREE.Group();
-      const mesh = new THREE.Mesh(
-        new THREE.BoxGeometry(1, 1, 1),
-        new THREE.MeshStandardMaterial({
-          color: 0xffb020,
-          transparent: true,
-          opacity: 0.3,
-          emissive: 0xffb020,
-          emissiveIntensity: 0.18,
-          roughness: 0.38,
-          metalness: 0.12,
-        })
-      );
-      const edges = new THREE.LineSegments(
-        new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1)),
-        new THREE.LineBasicMaterial({ color: 0xffd9a0, transparent: true, opacity: 0.72 })
-      );
-      group.add(mesh);
-      group.add(edges);
-      group.userData.mesh = mesh;
-      group.userData.edges = edges;
-      this._spatialMapGroup.add(group);
-      this._spatialMapRooms.push(group);
+    while (this._spatialMapGroup.children.length) {
+      const child = this._spatialMapGroup.children[this._spatialMapGroup.children.length - 1];
+      this._spatialMapGroup.remove(child);
+      if (child.geometry) child.geometry.dispose?.();
+      if (child.material) {
+        if (Array.isArray(child.material)) child.material.forEach((mat) => mat.dispose?.());
+        else child.material.dispose?.();
+      }
     }
 
-    this._spatialMapRooms.forEach((group, index) => {
-      const room = map.rooms[index];
-      if (!room) {
-        group.visible = false;
-        return;
-      }
-      group.visible = true;
-      const x = this._mapToWorldX(room.x + room.w / 2, map.apartment);
-      const z = this._mapToWorldZ(room.y + room.h / 2, map.apartment);
-      const w = (room.w / map.apartment.w) * 12;
-      const d = (room.h / map.apartment.h) * 10;
-      const h = 1.8 + (room.h / map.apartment.h) * 2.4;
-      group.position.set(x, h / 2, z);
-      group.scale.set(w, h, d);
-      const active = tracking?.roomId === room.id;
-      group.userData.mesh.material.color.set(active ? 0x3eff8a : 0xffb020);
-      group.userData.mesh.material.emissive.set(active ? 0x3eff8a : 0xffb020);
-      group.userData.mesh.material.opacity = active ? 0.4 : 0.26;
-      group.userData.edges.material.color.set(active ? 0x94ffc0 : 0xffd9a0);
-      group.userData.edges.material.opacity = active ? 0.95 : 0.72;
+    const apartment = map.apartment;
+    const preview = Boolean(map?.meta?.preview);
+    map.rooms.forEach((room, index) => {
+      const outline = room.outline?.length ? room.outline : [
+        { x: room.x, y: room.y },
+        { x: room.x + room.w, y: room.y },
+        { x: room.x + room.w, y: room.y + room.h },
+        { x: room.x, y: room.y + room.h },
+      ];
+      const geometry = this._buildSpatialRoomGeometry(outline, apartment, 0.55 + index * 0.02);
+      geometry.rotateX(-Math.PI / 2);
+      const color = preview ? [0xffb020, 0x3eff8a, 0x2090ff, 0xff4060][index % 4] : 0xffb020;
+      const material = new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity: preview ? 0.14 : 0.18,
+        depthWrite: false,
+      });
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.y = 0.04;
+      mesh.renderOrder = 4;
+      this._spatialMapGroup.add(mesh);
+
+      const edges = new THREE.EdgesGeometry(geometry);
+      const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({
+        color: preview ? 0x7fffb3 : 0xffd08c,
+        transparent: true,
+        opacity: preview ? 0.42 : 0.5,
+        depthWrite: false,
+      }));
+      line.position.copy(mesh.position);
+      line.renderOrder = 5;
+      this._spatialMapGroup.add(line);
     });
 
-    if (!this._spatialRouter) {
-      const router = new THREE.Group();
-      const core = new THREE.Mesh(
-        new THREE.SphereGeometry(0.18, 16, 16),
-        new THREE.MeshBasicMaterial({ color: 0xffb020 })
-      );
-      const halo = new THREE.Mesh(
-        new THREE.SphereGeometry(0.38, 16, 16),
-        new THREE.MeshBasicMaterial({
-          color: 0xffb020,
-          transparent: true,
-          opacity: 0.12,
-          blending: THREE.AdditiveBlending,
-          depthWrite: false,
-        })
-      );
-      router.add(core);
-      router.add(halo);
-      this._spatialMapGroup.add(router);
-      this._spatialRouter = router;
-    }
-
     if (map.router) {
-      this._spatialRouter.visible = true;
-      this._spatialRouter.position.set(
-        this._mapToWorldX(map.router.x, map.apartment),
-        0.38,
-        this._mapToWorldZ(map.router.y, map.apartment)
+      const routerMarker = new THREE.Mesh(
+        new THREE.SphereGeometry(0.12, 16, 16),
+        new THREE.MeshBasicMaterial({ color: 0xffb020, transparent: true, opacity: 0.92, depthWrite: false })
       );
+      routerMarker.position.set(this._mapToWorldX(map.router.x, apartment), 0.32, this._mapToWorldZ(map.router.y, apartment));
+      routerMarker.renderOrder = 8;
+      this._spatialMapGroup.add(routerMarker);
     }
 
-    if (!this._spatialTracker) {
-      this._spatialTracker = new THREE.Mesh(
-        new THREE.SphereGeometry(0.22, 20, 20),
-        new THREE.MeshBasicMaterial({ color: 0x00d878 })
+    const tracker = sceneState?.tracking;
+    if (tracker?.active) {
+      const trackerMarker = new THREE.Mesh(
+        new THREE.SphereGeometry(0.15, 18, 18),
+        new THREE.MeshBasicMaterial({ color: 0x00d878, transparent: true, opacity: 0.96, depthWrite: false })
       );
-      this._spatialMapGroup.add(this._spatialTracker);
-    }
-    this._spatialTracker.visible = Boolean(tracking?.active && tracking?.roomId);
-    if (this._spatialTracker.visible) {
-      this._spatialTracker.position.set(
-        this._mapToWorldX(tracking.x, map.apartment),
-        0.26,
-        this._mapToWorldZ(tracking.y, map.apartment)
-      );
+      trackerMarker.position.set(this._mapToWorldX(tracker.x, apartment), 0.44, this._mapToWorldZ(tracker.y, apartment));
+      trackerMarker.renderOrder = 9;
+      this._spatialMapGroup.add(trackerMarker);
     }
   }
 
@@ -519,6 +504,22 @@ class Observatory {
 
   _mapToWorldZ(y, apartment) {
     return ((y - apartment.y) / apartment.h - 0.5) * 10;
+  }
+
+  _buildSpatialRoomGeometry(outline, apartment, height) {
+    const shape = new THREE.Shape();
+    outline.forEach((point, index) => {
+      const x = this._mapToWorldX(point.x, apartment);
+      const y = this._mapToWorldZ(point.y, apartment);
+      if (index === 0) shape.moveTo(x, y);
+      else shape.lineTo(x, y);
+    });
+    shape.closePath();
+    return new THREE.ExtrudeGeometry(shape, {
+      depth: height,
+      bevelEnabled: false,
+      curveSegments: 1,
+    });
   }
 
   // ---- Keyboard ----
@@ -566,6 +567,100 @@ class Observatory {
 
   // ---- WebSocket live data ----
 
+  _initMobileBridge() {
+    this._renderMobileBridge(null, 'Preparing mobile join...');
+    this._createMobileSession();
+  }
+
+  async _createMobileSession() {
+    try {
+      const response = await fetch('/api/v1/mobile/session', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+      });
+      if (!response.ok) throw new Error(`session_create_${response.status}`);
+      const session = await response.json();
+      this._mobileBridge.session = session;
+      this._mobileBridge.lastMobileEventCount = 0;
+      this._mobileBridge.lastProbeEventId = 0;
+      this._renderMobileBridge(session, 'Scan from the same WiFi to start scanning.');
+      this._scheduleMobilePoll();
+      this._scheduleMobileRotation();
+    } catch (error) {
+      this._renderMobileBridge(null, `Mobile join unavailable: ${error?.message || error}`);
+    }
+  }
+
+  _scheduleMobilePoll() {
+    if (this._mobileBridge.pollTimer) clearInterval(this._mobileBridge.pollTimer);
+    this._mobileBridge.pollTimer = setInterval(() => this._pollMobileSession(), 1500);
+    this._pollMobileSession();
+  }
+
+  _scheduleMobileRotation() {
+    if (this._mobileBridge.rotateTimer) clearTimeout(this._mobileBridge.rotateTimer);
+    this._mobileBridge.rotateTimer = setTimeout(() => this._createMobileSession(), 60000);
+  }
+
+  async _pollMobileSession() {
+    const current = this._mobileBridge.session;
+    if (!current?.session_id) return;
+    try {
+      const response = await fetch(`/api/v1/mobile/session/${encodeURIComponent(current.session_id)}`);
+      if (!response.ok) {
+        if (response.status === 404) {
+          this._createMobileSession();
+        }
+        return;
+      }
+      const session = await response.json();
+      this._mobileBridge.session = session;
+      if (session.mobile_joined_at_ms && session.mobile_joined_at_ms !== this._mobileBridge.lastJoinedAt) {
+        this._mobileBridge.lastJoinedAt = session.mobile_joined_at_ms;
+        this._mapper.startScan();
+      }
+      if (Number(session.mobile_events || 0) > this._mobileBridge.lastMobileEventCount) {
+        this._mobileBridge.lastMobileEventCount = Number(session.mobile_events || 0);
+        const probes = Array.isArray(session.recent_probes) ? session.recent_probes : (session.last_probe ? [session.last_probe] : []);
+        const fresh = probes.filter((probe) => Number(probe?.event_id || 0) > this._mobileBridge.lastProbeEventId);
+        fresh.sort((a, b) => Number(a?.event_id || 0) - Number(b?.event_id || 0));
+        fresh.forEach((probe) => {
+          this._mapper.ingestMobileProbe(probe);
+          this._mobileBridge.lastProbeEventId = Math.max(this._mobileBridge.lastProbeEventId, Number(probe?.event_id || 0));
+        });
+      }
+      this._renderMobileBridge(session);
+    } catch {
+      this._renderMobileBridge(current, 'Desktop server reachable only locally right now.');
+    }
+  }
+
+  _renderMobileBridge(session, overrideHint = '') {
+    const canvas = this._mobileEls.qr;
+    const code = session?.code || session?.session_id || '------';
+    const joinUrl = session?.join_url || '';
+    this._mobileEls.code.textContent = code;
+    if (session?.mobile_joined_at_ms) {
+      const device = session.mobile_device_label || 'mobile browser';
+      const events = Number(session.mobile_events || 0);
+      this._mobileEls.status.textContent = `${device} joined. Live scan running.`;
+      this._mobileEls.hint.textContent = events > 0
+        ? `${events} mobile probe events received. Follow the wall first, then mark doorways as you cross them.`
+        : 'Hold the phone page open, walk the wall line first, and use doorway marks at thresholds.';
+    } else {
+      this._mobileEls.status.textContent = joinUrl
+        ? `Session ${code} ready on ${session?.lan_host || 'LAN'}`
+        : 'Preparing join session...';
+      this._mobileEls.hint.textContent = overrideHint || 'Scan the QR code from the same WiFi, then walk the current room boundary first.';
+    }
+
+    if (joinUrl) {
+      canvas.src = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=0&data=${encodeURIComponent(joinUrl)}`;
+    } else {
+      canvas.removeAttribute('src');
+    }
+  }
+
   _autoDetectLive() {
     // Probe sensing server health on same origin, then common ports
     const host = window.location.hostname || 'localhost';
@@ -609,14 +704,22 @@ class Observatory {
       this._ws = new WebSocket(url);
       this._ws.onopen = () => {
         console.log('[Observatory] WebSocket connected');
+        this._lastLiveSource = 'wifi';
         this._hud.updateSourceBadge('ws', this._ws);
       };
-      this._ws.onmessage = (evt) => { try { this._liveData = JSON.parse(evt.data); } catch {} };
+      this._ws.onmessage = (evt) => {
+        try {
+          this._liveData = JSON.parse(evt.data);
+          this._lastLiveSource = this._liveData?.source || this._lastLiveSource || 'wifi';
+        } catch {}
+      };
       this._ws.onclose = () => {
-        console.log('[Observatory] WebSocket closed, falling back to demo');
+        console.log('[Observatory] WebSocket closed, staying in live-wait mode');
         this._ws = null;
-        this.settings.dataSource = 'demo';
-        this._hud.updateSourceBadge('demo', null);
+        this._liveData = null;
+        this.settings.dataSource = 'ws';
+        this._hud.updateSourceBadge('ws', null);
+        window.setTimeout(() => this._autoDetectLive(), 1200);
       };
       this._ws.onerror = () => {};
     } catch {}
@@ -639,6 +742,20 @@ class Observatory {
       features: { ...(data.features || {}) },
     };
 
+    const mobileTracker = this._mapper?.getMobileTrackerState?.();
+    if (mobileTracker?.active) {
+      adapted.classification.presence = true;
+      adapted.classification.confidence = Math.max(Number(adapted.classification.confidence || 0), Number(mobileTracker.confidence || 0.82));
+      adapted.estimated_persons = 1;
+      this._proxyPersonState.x = mobileTracker.sceneX;
+      this._proxyPersonState.z = mobileTracker.sceneZ;
+      this._proxyPersonState.heading = mobileTracker.heading;
+      this._proxyPersonState.confidence = mobileTracker.confidence;
+      adapted.persons = [this._buildProxyPerson(adapted, elapsed)];
+      adapted.signal_field = this._buildProxySignalField(adapted);
+      return adapted;
+    }
+
     if (Array.isArray(data.persons) && data.persons.length > 0) {
       return adapted;
     }
@@ -650,6 +767,39 @@ class Observatory {
     adapted.persons = presence ? [this._buildProxyPerson(adapted, elapsed)] : [];
     adapted.signal_field = this._buildProxySignalField(adapted);
     return adapted;
+  }
+
+  _buildWaitingLiveState(elapsed) {
+    const wifiSource = this._lastLiveSource || 'wifi';
+    const calm = 0.004 + (Math.sin(elapsed * 0.3) + 1) * 0.001;
+    return {
+      tick: 0,
+      source: wifiSource,
+      status: 'waiting_for_wifi_samples',
+      classification: {
+        presence: false,
+        confidence: 0,
+        motion_level: 'waiting',
+      },
+      features: {
+        mean_rssi: -100,
+        variance: 0,
+        motion_band_power: 0,
+        breathing_band_power: 0,
+      },
+      vital_signs: {
+        breathing_rate_bpm: 0,
+        heart_rate_bpm: 0,
+      },
+      persons: [],
+      estimated_persons: 0,
+      bssid_count: 0,
+      signal_quality_score: 0,
+      signal_field: {
+        grid_size: [20, 1, 20],
+        values: Array.from({ length: 400 }, () => calm),
+      },
+    };
   }
 
   _inferProxyPresence(data) {
@@ -789,8 +939,10 @@ class Observatory {
     const elapsed = this._clock.getElapsedTime();
 
     // Data source
-    if (this.settings.dataSource === 'ws' && this._liveData) {
-      this._currentData = this._adaptLiveData(this._liveData, elapsed);
+    if (this.settings.dataSource === 'ws') {
+      this._currentData = this._liveData
+        ? this._adaptLiveData(this._liveData, elapsed)
+        : this._buildWaitingLiveState(elapsed);
     } else {
       this._currentData = this._demoData.update(dt);
     }
@@ -799,10 +951,11 @@ class Observatory {
     // Updates
     this._nebula.update(dt, elapsed);
     this._figurePool.update(data, elapsed);
-    this._scenarioProps.update(data, this._demoData.currentScenario);
+    const scenarioForProps = this.settings.dataSource === 'ws' ? 'empty_room' : this._demoData.currentScenario;
+    this._scenarioProps.update(data, scenarioForProps);
     this._updateDotMatrixMist(data, elapsed);
     this._updateParticleTrail(data, dt, elapsed);
-    this._updateWifiWaves(elapsed);
+    this._updateWifiWaves(elapsed, data);
     this._updateSignalField(data);
     this._hud.updateHUD(data, this._demoData);
     this._hud.updateSparkline(data);
@@ -924,14 +1077,19 @@ class Observatory {
 
   // ---- WiFi Waves ----
 
-  _updateWifiWaves(elapsed) {
+  _updateWifiWaves(elapsed, data) {
+    const confidence = Number(data?.classification?.confidence || 0);
+    const motion = Number(data?.features?.motion_band_power || 0);
+    const variance = Number(data?.features?.variance || 0);
+    const presence = Boolean(data?.classification?.presence);
+    const amplitude = 0.2 + confidence * 0.65 + Math.min(0.28, motion * 12) + Math.min(0.22, variance * 8);
     for (const w of this._wifiWaves) {
       const t = (elapsed * 0.8 + w.phase) % 4.5;
       const life = t / 4.5;
-      w.mat.opacity = Math.max(0, this.settings.waves * 0.25 * (1 - life));
-      const scale = 1 + life * 0.6;
+      w.mat.opacity = Math.max(0.05, this.settings.waves * (presence ? 0.12 + amplitude * 0.18 : 0.06) * (1 - life));
+      const scale = 1 + life * (0.45 + amplitude * 0.55);
       w.mesh.scale.set(scale, scale, scale);
-      w.mesh.rotation.y = elapsed * 0.05;
+      w.mesh.rotation.y = elapsed * (0.05 + variance * 0.4);
     }
   }
 
@@ -941,8 +1099,10 @@ class Observatory {
     const field = data?.signal_field?.values;
     if (!field) return;
     const count = Math.min(field.length, 400);
+    let peak = 0;
     for (let i = 0; i < count; i++) {
       const v = field[i] || 0;
+      peak = Math.max(peak, v);
       let r, g, b;
       if (v < 0.3) { r = 0; g = v * 1.5; b = v * 0.3; }
       else if (v < 0.6) {
@@ -957,6 +1117,8 @@ class Observatory {
       this._fieldColors[i * 3 + 2] = b;
       this._fieldSizes[i] = 5 + v * 15;
     }
+    const confidence = Number(data?.classification?.confidence || 0);
+    this._fieldMat.opacity = Math.max(0.18, this.settings.field * (0.45 + confidence * 0.8 + peak * 0.35));
     this._fieldPoints.geometry.attributes.color.needsUpdate = true;
     this._fieldPoints.geometry.attributes.size.needsUpdate = true;
   }

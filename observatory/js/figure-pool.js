@@ -157,8 +157,11 @@ export class FigurePool {
         emissiveIntensity: 0.35,
         transparent: true, opacity: 0,
         roughness: 0.3, metalness: 0.2,
+        depthWrite: false,
+        depthTest: false,
       });
       const sphere = new THREE.Mesh(geo, mat);
+      sphere.renderOrder = 50;
       sphere.castShadow = true;
       group.add(sphere);
       joints.push(sphere);
@@ -171,8 +174,10 @@ export class FigurePool {
           transparent: true, opacity: 0,
           blending: THREE.AdditiveBlending,
           depthWrite: false,
+          depthTest: false,
         });
         const halo = new THREE.Mesh(haloGeo, haloMat);
+        halo.renderOrder = 52;
         sphere.add(halo);
         sphere._halo = halo;
         sphere._haloMat = haloMat;
@@ -198,8 +203,11 @@ export class FigurePool {
       const mat = new THREE.MeshStandardMaterial({
         color: wireColor, emissive: wireColor, emissiveIntensity: 0.3,
         transparent: true, opacity: 0, roughness: 0.4, metalness: 0.1,
+        depthWrite: false,
+        depthTest: false,
       });
       const mesh = new THREE.Mesh(geo, mat);
+      mesh.renderOrder = 49;
       mesh.castShadow = true;
       group.add(mesh);
       bones.push({ mesh, a, b, taper });
@@ -219,8 +227,11 @@ export class FigurePool {
         color: wireColor, emissive: wireColor, emissiveIntensity: 0.12,
         transparent: true, opacity: 0, roughness: 0.5, metalness: 0.1,
         side: THREE.DoubleSide,
+        depthWrite: false,
+        depthTest: false,
       });
       const mesh = new THREE.Mesh(geo, mat);
+      mesh.renderOrder = 48;
       group.add(mesh);
       bodySegments.push({ mesh, mat, a: seg.joints[0], b: seg.joints[1], isHead: seg.isHead });
     }
@@ -229,9 +240,10 @@ export class FigurePool {
     const auraGeo = new THREE.CylinderGeometry(0.4, 0.3, 1.7, 16, 1, true);
     const auraMat = new THREE.MeshBasicMaterial({
       color: wireColor, transparent: true, opacity: 0,
-      side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false,
+      side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false,
     });
     const aura = new THREE.Mesh(auraGeo, auraMat);
+    aura.renderOrder = 47;
     aura.position.y = 1;
     group.add(aura);
 

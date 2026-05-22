@@ -117,6 +117,14 @@
       <div class="cap-item"><span class="cap-icon">&#9784;</span><span>Presence Detection</span></div>
     </div>
 
+    <section id="mobile-bridge-panel" class="mobile-bridge-panel">
+      <div class="mobile-bridge-kicker">Mobile Probe</div>
+      <img id="mobile-bridge-qr" alt="Mobile join QR">
+      <div id="mobile-bridge-code" class="mobile-bridge-code">------</div>
+      <div id="mobile-bridge-status" class="mobile-bridge-status">Preparing join link...</div>
+      <div id="mobile-bridge-hint" class="mobile-bridge-hint">Scan from the same WiFi to start scanning.</div>
+    </section>
+
     <!-- Bottom-right: keyboard hints -->
     <div id="key-hints">
       <span class="key-hint">[A] Orbit</span>
@@ -153,15 +161,18 @@
       <div class="mapper-pane" data-mapper-pane="scan">
         <div class="mapper-actions">
           <button id="mapper-scan-start">Start Scan</button>
+          <button id="mapper-scan-resume">Resume Scan</button>
           <button id="mapper-scan-stop">Generate Draft</button>
           <button id="mapper-scan-mark">Mark Spot</button>
           <button id="mapper-scan-reset">Reset</button>
         </div>
         <div class="mapper-stats">
+          <span id="mapper-live-status">Waiting for RF server</span>
           <span id="mapper-scan-status">Idle</span>
           <span id="mapper-scan-samples">0 samples</span>
           <span id="mapper-scan-confidence">0% draft</span>
         </div>
+        <div id="mapper-failure" class="mapper-failure mapper-failure--hidden"></div>
       </div>
 
       <div class="mapper-pane mapper-pane--hidden" data-mapper-pane="edit">

@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>RuView Mobile Probe</title>
+  <style>
+    :root {
+      --bg: #081018;
+      --panel: rgba(10, 18, 28, 0.88);
+      --border: rgba(0, 216, 120, 0.18);
+      --text: #edf2ea;
+      --muted: rgba(237, 242, 234, 0.66);
+      --green: #00d878;
+      --amber: #ffb020;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, system-ui, sans-serif;
+      background:
+        radial-gradient(circle at top, rgba(0, 216, 120, 0.12), transparent 35%),
+        linear-gradient(180deg, #071019, #0b131d 60%, #080d14);
+      color: var(--text);
+      display: grid;
+      place-items: center;
+      padding: 18px;
+    }
+    .shell {
+      width: min(100%, 460px);
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 22px 18px 18px;
+      box-shadow: 0 18px 60px rgba(0, 0, 0, 0.32);
+      backdrop-filter: blur(14px);
+    }
+    .kicker {
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    h1 {
+      margin: 8px 0 4px;
+      font-size: 28px;
+      line-height: 1.1;
+    }
+    p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    .status {
+      margin-top: 18px;
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.06);
+      font-size: 14px;
+    }
+    .meta {
+      margin-top: 14px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .card {
+      padding: 12px;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+    .card small {
+      display: block;
+      color: var(--muted);
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-size: 10px;
+    }
+    .card strong {
+      display: block;
+      font-size: 18px;
+    }
+    .actions {
+      display: grid;
+      gap: 10px;
+      margin-top: 16px;
+    }
+    .guide {
+      margin-top: 16px;
+      padding: 12px;
+      border-radius: 16px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+    #guide-canvas {
+      width: 100%;
+      height: 180px;
+      border-radius: 12px;
+      display: block;
+      background: linear-gradient(180deg, rgba(6,12,18,0.92), rgba(9,16,25,0.96));
+    }
+    .guide-copy {
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+    button {
+      width: 100%;
+      border: 0;
+      border-radius: 14px;
+      padding: 14px 16px;
+      font-size: 15px;
+      font-weight: 700;
+      color: #04120c;
+      background: linear-gradient(180deg, #39f59b, #00d878);
+    }
+    button.secondary {
+      color: var(--text);
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .foot {
+      margin-top: 14px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <div class="kicker">RuView Mobile Probe</div>
+    <h1>Connected to desktop session</h1>
+    <p>This page only opens when the phone can reach the desktop server on the same WiFi or LAN.</p>
+    <div id="status" class="status">Joining session...</div>
+    <div class="meta">
+      <div class="card">
+        <small>Session</small>
+        <strong id="session-code">------</strong>
+      </div>
+      <div class="card">
+        <small>Probe events</small>
+        <strong id="event-count">0</strong>
+      </div>
+    </div>
+    <div class="meta">
+      <div class="card">
+        <small>Heading</small>
+        <strong id="heading-value">--°</strong>
+      </div>
+      <div class="card">
+        <small>Steps</small>
+        <strong id="steps-value">0</strong>
+      </div>
+      <div class="card">
+        <small>Motion</small>
+        <strong id="motion-value">0.00</strong>
+      </div>
+      <div class="card">
+        <small>Desktop RTT</small>
+        <strong id="rtt-value">-- ms</strong>
+      </div>
+    </div>
+    <div class="actions">
+      <button id="enable-motion">Enable Motion</button>
+      <button id="send-ping" class="secondary">Send Position Ping</button>
+      <button id="mark-door" class="secondary">Mark Doorway</button>
+      <button id="mark-step" class="secondary">Manual Step</button>
+    </div>
+    <div class="guide">
+      <canvas id="guide-canvas" width="420" height="180"></canvas>
+      <div id="guide-text" class="guide-copy">Walk around the current room boundary first, then move into the next open area where the path is still sparse.</div>
+    </div>
+    <div class="foot" id="footnote">The desktop will start live RF scanning as soon as this phone joins.</div>
+  </main>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get('session') || '';
+    const statusEl = document.getElementById('status');
+    const codeEl = document.getElementById('session-code');
+    const countEl = document.getElementById('event-count');
+    const headingEl = document.getElementById('heading-value');
+    const stepsEl = document.getElementById('steps-value');
+    const motionEl = document.getElementById('motion-value');
+    const rttEl = document.getElementById('rtt-value');
+    const footnoteEl = document.getElementById('footnote');
+    const guideTextEl = document.getElementById('guide-text');
+    const motionBtn = document.getElementById('enable-motion');
+    const pingBtn = document.getElementById('send-ping');
+    const doorBtn = document.getElementById('mark-door');
+    const stepBtn = document.getElementById('mark-step');
+    const guideCanvas = document.getElementById('guide-canvas');
+    const guideCtx = guideCanvas.getContext('2d');
+
+    codeEl.textContent = sessionId || '------';
+    let eventCount = 0;
+    let orientationState = {
+      heading_deg: null,
+      motion_energy: 0,
+      step_like: false,
+      pitch_deg: 0,
+      roll_deg: 0,
+      turn_rate: 0,
+      accel_norm: 0,
+      network_rtt_ms: null,
+      downlink_mbps: null,
+      effective_type: '',
+    };
+    const path = [{ x: 210, y: 90 }];
+    let stepCount = 0;
+    let lastStepSentAt = 0;
+    let lastStepDetectedAt = 0;
+    let lastTurnSentAt = 0;
+    let lastHeading = null;
+    let lastMotionTick = 0;
+    let motionEnabled = false;
+    let lastSensorUpdateAt = 0;
+
+    function setStatus(text) {
+      statusEl.textContent = text;
+    }
+
+    function refreshTelemetry() {
+      headingEl.textContent = Number.isFinite(orientationState.heading_deg) ? `${Math.round(orientationState.heading_deg)}°` : '--°';
+      stepsEl.textContent = String(stepCount);
+      motionEl.textContent = Number(orientationState.motion_energy || 0).toFixed(2);
+      rttEl.textContent = Number.isFinite(orientationState.network_rtt_ms) ? `${Math.round(orientationState.network_rtt_ms)} ms` : '-- ms';
+    }
+
+    async function joinSession() {
+      if (!sessionId) {
+        setStatus('Missing session code.');
+        return;
+      }
+      const res = await fetch(`/api/v1/mobile/session/${encodeURIComponent(sessionId)}/join`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          device_label: navigator.userAgentData?.platform || navigator.platform || 'mobile-browser'
+        })
+      });
+      if (!res.ok) {
+        setStatus('Desktop session expired. Re-scan the new QR code.');
+        return;
+      }
+      const data = await res.json();
+      setStatus(`Joined. Desktop ${data.lan_host}:${data.http_port} is reachable on this network.`);
+      footnoteEl.textContent = 'Keep this page open while walking. The desktop will keep rebuilding the RF structure.';
+    }
+
+    async function sendProbe(note) {
+      if (!sessionId) return;
+      const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+      orientationState.downlink_mbps = Number(connection?.downlink || 0) || null;
+      orientationState.effective_type = String(connection?.effectiveType || '');
+      const payload = {
+        ts_ms: Date.now(),
+        heading_deg: orientationState.heading_deg,
+        motion_energy: orientationState.motion_energy,
+        step_like: Date.now() - lastStepDetectedAt < 260,
+        turn_rate: orientationState.turn_rate,
+        pitch_deg: orientationState.pitch_deg,
+        roll_deg: orientationState.roll_deg,
+        accel_norm: orientationState.accel_norm,
+        network_rtt_ms: orientationState.network_rtt_ms,
+        downlink_mbps: orientationState.downlink_mbps,
+        effective_type: orientationState.effective_type,
+        note: note || null,
+      };
+      const res = await fetch(`/api/v1/mobile/session/${encodeURIComponent(sessionId)}/event`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) return;
+      eventCount += 1;
+      countEl.textContent = String(eventCount);
+      refreshTelemetry();
+      drawGuide();
+    }
+
+    function advancePath() {
+      const stepLike = Boolean(orientationState.step_like);
+      if (!stepLike) return;
+      const headingDeg = Number.isFinite(orientationState.heading_deg) ? orientationState.heading_deg : 0;
+      const heading = (headingDeg * Math.PI) / 180;
+      const last = path[path.length - 1];
+      const stride = Math.max(6, Math.min(16, 7 + orientationState.motion_energy * 0.24));
+      path.push({
+        x: Math.max(20, Math.min(400, last.x + Math.sin(heading) * stride)),
+        y: Math.max(20, Math.min(160, last.y - Math.cos(heading) * stride)),
+      });
+      stepCount += 1;
+      while (path.length > 180) path.shift();
+      drawGuide();
+    }
+
+    function sparseDirection() {
+      const latest = path[path.length - 1];
+      const sectors = [
+        { name: 'north', dx: 0, dy: -1, score: 0 },
+        { name: 'east', dx: 1, dy: 0, score: 0 },
+        { name: 'south', dx: 0, dy: 1, score: 0 },
+        { name: 'west', dx: -1, dy: 0, score: 0 },
+      ];
+      for (const point of path) {
+        const vx = point.x - latest.x;
+        const vy = point.y - latest.y;
+        const d = Math.hypot(vx, vy) || 1;
+        sectors.forEach((sector) => {
+          const alignment = ((vx / d) * sector.dx) + ((vy / d) * sector.dy);
+          if (alignment > 0.55) sector.score += 1 / d;
+        });
+      }
+      sectors.sort((a, b) => a.score - b.score);
+      return sectors[0].name;
+    }
+
+    function drawGuide() {
+      guideCtx.clearRect(0, 0, guideCanvas.width, guideCanvas.height);
+      guideCtx.fillStyle = '#071019';
+      guideCtx.fillRect(0, 0, guideCanvas.width, guideCanvas.height);
+      guideCtx.strokeStyle = 'rgba(255,255,255,0.05)';
+      for (let x = 30; x <= 390; x += 30) {
+        guideCtx.beginPath();
+        guideCtx.moveTo(x, 16);
+        guideCtx.lineTo(x, 164);
+        guideCtx.stroke();
+      }
+      for (let y = 16; y <= 164; y += 24) {
+        guideCtx.beginPath();
+        guideCtx.moveTo(20, y);
+        guideCtx.lineTo(400, y);
+        guideCtx.stroke();
+      }
+      if (path.length > 1) {
+        guideCtx.strokeStyle = 'rgba(0,216,120,0.92)';
+        guideCtx.lineWidth = 3;
+        guideCtx.beginPath();
+        path.forEach((point, index) => {
+          if (index === 0) guideCtx.moveTo(point.x, point.y);
+          else guideCtx.lineTo(point.x, point.y);
+        });
+        guideCtx.stroke();
+      }
+      const first = path[0];
+      const last = path[path.length - 1];
+      guideCtx.fillStyle = 'rgba(255,176,32,0.18)';
+      guideCtx.strokeStyle = '#ffb020';
+      guideCtx.beginPath();
+      guideCtx.arc(first.x, first.y, 12, 0, Math.PI * 2);
+      guideCtx.fill();
+      guideCtx.stroke();
+      guideCtx.fillStyle = '#ffcf7a';
+      guideCtx.font = '12px sans-serif';
+      guideCtx.fillText('Start', first.x + 14, first.y - 8);
+
+      guideCtx.fillStyle = '#00d878';
+      guideCtx.beginPath();
+      guideCtx.arc(last.x, last.y, 7, 0, Math.PI * 2);
+      guideCtx.fill();
+      const dir = sparseDirection();
+      guideTextEl.textContent = path.length < 8
+        ? 'Circle the current room outline first so the seed room is stable.'
+        : `Coverage is thinner toward ${dir}. Move there to extend the map cleanly.`;
+    }
+
+    async function enableMotion() {
+      try {
+        if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+          const result = await DeviceMotionEvent.requestPermission();
+          if (result !== 'granted') {
+            setStatus('Motion permission denied.');
+            return;
+          }
+        }
+        if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+          const result = await DeviceOrientationEvent.requestPermission();
+          if (result !== 'granted') {
+            setStatus('Orientation permission denied.');
+            return;
+          }
+        }
+        const onHeadingEvent = (event) => {
+          const rawHeading = typeof event.webkitCompassHeading === 'number'
+            ? event.webkitCompassHeading
+            : typeof event.alpha === 'number'
+              ? (360 - event.alpha + 360) % 360
+              : null;
+          if (rawHeading !== null) {
+            const heading = rawHeading;
+            if (lastHeading !== null) {
+              let delta = heading - lastHeading;
+              while (delta > 180) delta -= 360;
+              while (delta < -180) delta += 360;
+              orientationState.turn_rate = Math.round(delta * 10) / 10;
+              if (Math.abs(delta) > 18 && Date.now() - lastTurnSentAt > 420) {
+                lastTurnSentAt = Date.now();
+                sendProbe('wall_walk');
+              }
+            }
+            lastHeading = heading;
+            orientationState.heading_deg = Math.round(heading);
+            orientationState.pitch_deg = Math.round(Number(event.beta || 0));
+            orientationState.roll_deg = Math.round(Number(event.gamma || 0));
+            lastSensorUpdateAt = Date.now();
+            refreshTelemetry();
+          }
+        };
+        window.addEventListener('deviceorientation', onHeadingEvent);
+        window.addEventListener('deviceorientationabsolute', onHeadingEvent);
+        window.addEventListener('devicemotion', (event) => {
+          const acc = event.accelerationIncludingGravity || event.acceleration;
+          const x = Number(acc?.x || 0);
+          const y = Number(acc?.y || 0);
+          const z = Number(acc?.z || 0);
+          const energy = Math.sqrt(x * x + y * y + z * z);
+          orientationState.motion_energy = Math.round(energy * 100) / 100;
+          orientationState.accel_norm = orientationState.motion_energy;
+          const pulse = energy - lastMotionTick;
+          lastMotionTick = energy;
+          orientationState.step_like = energy > 11.2 && pulse > 0.35;
+          lastSensorUpdateAt = Date.now();
+          refreshTelemetry();
+          if (orientationState.step_like) {
+            lastStepDetectedAt = Date.now();
+            advancePath();
+            if (Date.now() - lastStepSentAt > 180) {
+              lastStepSentAt = Date.now();
+              sendProbe('step');
+            }
+          }
+        });
+        motionEnabled = true;
+        setStatus('Motion probe active. If heading stays blank on iPhone, check Safari Motion & Orientation Access or use Manual Step.');
+        window.setTimeout(() => {
+          if (motionEnabled && Date.now() - lastSensorUpdateAt > 3500) {
+            setStatus('No motion/orientation events detected yet. If this browser blocks sensors, use Manual Step while keeping the page open.');
+          }
+        }, 3800);
+        drawGuide();
+      } catch (error) {
+        setStatus(`Motion setup failed: ${error?.message || error}`);
+      }
+    }
+
+    async function sampleDesktopRtt() {
+      const t0 = performance.now();
+      try {
+        const res = await fetch('/health', { cache: 'no-store' });
+        if (!res.ok) return;
+        orientationState.network_rtt_ms = performance.now() - t0;
+        refreshTelemetry();
+      } catch {}
+    }
+
+    function sendManualStep() {
+      if (!motionEnabled && !Number.isFinite(orientationState.heading_deg)) {
+        orientationState.heading_deg = 0;
+      }
+      orientationState.motion_energy = Math.max(orientationState.motion_energy, 12.5);
+      orientationState.step_like = true;
+      lastStepDetectedAt = Date.now();
+      advancePath();
+      sendProbe('step');
+      window.setTimeout(() => {
+        orientationState.step_like = false;
+        refreshTelemetry();
+      }, 320);
+      refreshTelemetry();
+    }
+
+    motionBtn.addEventListener('click', enableMotion);
+    pingBtn.addEventListener('click', () => sendProbe('manual_ping'));
+    doorBtn.addEventListener('click', () => sendProbe('doorway_mark'));
+    stepBtn.addEventListener('click', sendManualStep);
+
+    joinSession().then(() => {
+      setInterval(() => sendProbe('heartbeat'), 1500);
+      setInterval(sampleDesktopRtt, 2200);
+      refreshTelemetry();
+      drawGuide();
+    }).catch((error) => {
+      setStatus(`Join failed: ${error?.message || error}`);
+    });
+  </script>
+</body>
+</html>

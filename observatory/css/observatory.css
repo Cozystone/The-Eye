@@ -873,6 +873,21 @@ body {
   margin: 0;
 }
 
+.mapper-failure {
+  margin-top: 8px;
+  border: 1px solid rgba(255, 96, 96, 0.18);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(255, 96, 96, 0.08);
+  color: #ffb9b9;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.mapper-failure--hidden {
+  display: none;
+}
+
 .mapper-map-wrap {
   margin-top: 12px;
   border-radius: 16px;
@@ -937,6 +952,64 @@ body {
   line-height: 1.35;
 }
 
+.mobile-bridge-panel {
+  position: absolute;
+  right: 28px;
+  bottom: 82px;
+  width: 164px;
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(7, 14, 22, 0.88);
+  border: 1px solid rgba(0, 216, 120, 0.18);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.28);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  pointer-events: auto;
+}
+
+.mobile-bridge-kicker {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: var(--text-label);
+  margin-bottom: 8px;
+}
+
+#mobile-bridge-qr {
+  width: 120px;
+  height: 120px;
+  display: block;
+  margin: 0 auto;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.96);
+  object-fit: cover;
+  border: 0;
+}
+
+.mobile-bridge-code {
+  margin-top: 8px;
+  text-align: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 16px;
+  letter-spacing: 1.8px;
+  color: var(--green-bright);
+}
+
+.mobile-bridge-status {
+  margin-top: 6px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-primary);
+}
+
+.mobile-bridge-hint {
+  margin-top: 4px;
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--text-secondary);
+}
+
 @media (max-width: 1200px) {
   .mapper-overlay {
     width: 340px;
@@ -947,6 +1020,18 @@ body {
   #mapper-toggle {
     left: 14px;
     bottom: 14px;
+  }
+
+  .mobile-bridge-panel {
+    right: 14px;
+    bottom: 72px;
+    width: 146px;
+    padding: 10px;
+  }
+
+  #mobile-bridge-qr {
+    width: 108px;
+    height: 108px;
   }
 
   .mapper-overlay {
