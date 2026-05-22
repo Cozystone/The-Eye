@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.models import (
     Alert,
@@ -58,6 +58,7 @@ from app.service import (
     get_subject_map,
     get_subject_summary,
     list_alerts,
+    seed_demo_subject,
 )
 
 app = FastAPI(
@@ -67,13 +68,78 @@ app = FastAPI(
 )
 
 
-@app.get("/")
-def root() -> dict[str, object]:
+@app.get("/", response_class=HTMLResponse)
+def root() -> HTMLResponse:
+    html = """
+    <!doctype html>
+    <html>
+    <head>
+      <meta charset="utf-8" />
+      <title>The Eye</title>
+      <style>
+        body { font-family: Arial, sans-serif; margin: 0; background: #020617; color: #e2e8f0; }
+        .wrap { max-width: 1100px; margin: 0 auto; padding: 40px 24px 64px; }
+        h1 { font-size: 52px; margin-bottom: 8px; }
+        p.lead { color: #94a3b8; font-size: 18px; max-width: 720px; }
+        .actions { display: flex; gap: 12px; flex-wrap: wrap; margin: 28px 0 36px; }
+        a.btn {
+          background: #38bdf8; color: #082f49; text-decoration: none; font-weight: 700;
+          padding: 14px 18px; border-radius: 12px; display: inline-block;
+        }
+        a.btn.secondary { background: #1e293b; color: #e2e8f0; border: 1px solid #334155; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+        .card { background: #0f172a; border: 1px solid #1e293b; border-radius: 16px; padding: 18px; }
+        .card h2 { margin-top: 0; font-size: 20px; }
+        .meta { margin-top: 36px; color: #94a3b8; }
+        code { background: #111827; padding: 2px 6px; border-radius: 6px; }
+      </style>
+    </head>
+    <body>
+      <div class="wrap">
+        <h1>The Eye</h1>
+        <p class="lead">
+          Public account intelligence demo with map, timeline, relationship graph, watchlists, and alerts.
+          Click once and the sample dataset is generated automatically.
+        </p>
+        <div class="actions">
+          <a class="btn" href="/demo">Open Live Demo</a>
+          <a class="btn secondary" href="/docs">Open API Docs</a>
+          <a class="btn secondary" href="/api">JSON API Info</a>
+        </div>
+        <div class="grid">
+          <div class="card">
+            <h2>Map View</h2>
+            <p>Explicit public location tags rendered on a Leaflet map with provenance on every point.</p>
+          </div>
+          <div class="card">
+            <h2>Network Graph</h2>
+            <p>Observed mentions, topics, and risk signals linked as a lightweight relationship graph.</p>
+          </div>
+          <div class="card">
+            <h2>Risk Signals</h2>
+            <p>Short-link patterns, suspicious clusters, and impersonation heuristics summarized into alerts.</p>
+          </div>
+          <div class="card">
+            <h2>API + UI</h2>
+            <p>FastAPI backend with Swagger at <code>/docs</code> and a working browser UI at <code>/demo</code>.</p>
+          </div>
+        </div>
+        <p class="meta">Health check: <a href="/health" style="color:#38bdf8;">/health</a></p>
+      </div>
+    </body>
+    </html>
+    """
+    return HTMLResponse(html)
+
+
+@app.get("/api")
+def api_root() -> dict[str, object]:
     return {
         "name": "Threat Response Platform Beta",
         "status": "ok",
         "docs": "/docs",
         "health": "/health",
+        "demo": "/demo",
         "subject_ui_example": "/ui/subjects/{subject_id}",
         "features": [
             "incident response case platform",
@@ -182,6 +248,21 @@ def post_watchlist(payload: WatchlistCreate) -> Watchlist:
 @app.get("/alerts", response_model=list[Alert])
 def get_alerts() -> list[Alert]:
     return list_alerts()
+
+
+@app.get("/demo/seed")
+def demo_seed() -> dict[str, str]:
+    subject = seed_demo_subject()
+    return {
+        "subject_id": subject.subject_id,
+        "demo_url": f"/ui/subjects/{subject.subject_id}",
+    }
+
+
+@app.get("/demo")
+def demo_redirect() -> RedirectResponse:
+    subject = seed_demo_subject()
+    return RedirectResponse(url=f"/ui/subjects/{subject.subject_id}", status_code=307)
 
 
 @app.get("/ui/subjects/{subject_id}", response_class=HTMLResponse, responses={404: {"model": ErrorResponse}})

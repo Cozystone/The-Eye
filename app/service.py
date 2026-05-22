@@ -581,3 +581,88 @@ def create_watchlist(payload: WatchlistCreate) -> Watchlist:
 
 def list_alerts() -> list[Alert]:
     return sorted(store.alerts, key=lambda item: item.created_at, reverse=True)
+
+
+def seed_demo_subject() -> Subject:
+    existing = next((subject for subject in store.subjects.values() if subject.handle == "citysignals.media"), None)
+    if existing is not None:
+        if not store.subject_sources[existing.subject_id]:
+            _populate_demo_subject(existing.subject_id)
+        return existing
+
+    subject = create_subject(
+        SubjectCreate(
+            handle="citysignals.media",
+            display_name="City Signals Media",
+            subject_type="brand",
+            processing_basis=ProcessingBasis.PUBLIC_MONITORING,
+            notes="Built-in demo subject for map and graph exploration.",
+        )
+    )
+    _populate_demo_subject(subject.subject_id)
+    return subject
+
+
+def _populate_demo_subject(subject_id: str) -> None:
+    if store.subject_sources[subject_id]:
+        return
+
+    create_subject_source(
+        subject_id,
+        SubjectSourceCreate(
+            source_kind=SourceKind.PUBLIC_URL,
+            label="Instagram public page snapshot",
+            source_url="https://example.com/citysignals.media",
+            description="Demo public page metadata for map and network intelligence.",
+            observed_posts=[
+                ObservedPost(
+                    post_id="p1",
+                    posted_at=datetime(2026, 5, 20, 10, 15, tzinfo=UTC),
+                    caption="Coffee crawl through Seoul with #brunch #design #cafes",
+                    hashtags=["brunch", "design", "cafes"],
+                    mentions=["urbanframes", "roasterlab"],
+                    linked_domains=["citysignals.co", "bit.ly/citysignals-map"],
+                    public_location_name="Yeonnam",
+                    public_location_label="Seoul, KR",
+                    public_location_lat=37.5665,
+                    public_location_lng=126.9780,
+                    language_hint="en",
+                ),
+                ObservedPost(
+                    post_id="p2",
+                    posted_at=datetime(2026, 5, 21, 14, 30, tzinfo=UTC),
+                    caption="Studio visit and founder interview with #design #founders",
+                    hashtags=["design", "founders"],
+                    mentions=["urbanframes"],
+                    linked_domains=["citysignals.co"],
+                    public_location_label="Seoul, KR",
+                    public_location_lat=37.5665,
+                    public_location_lng=126.9780,
+                    language_hint="en",
+                ),
+                ObservedPost(
+                    post_id="p3",
+                    posted_at=datetime(2026, 5, 23, 3, 45, tzinfo=UTC),
+                    caption="Night market textures and signage study #street #visualculture",
+                    hashtags=["street", "visualculture"],
+                    mentions=["nightframes", "urbanframes"],
+                    linked_domains=["telegram.me/demo-channel"],
+                    public_location_label="Busan, KR",
+                    public_location_lat=35.1796,
+                    public_location_lng=129.0756,
+                    language_hint="en",
+                ),
+            ],
+            metadata={"captured_by": "demo_seed"},
+        ),
+    )
+
+    create_watchlist(
+        WatchlistCreate(
+            name="Demo link risk review",
+            description="Highlights public accounts with short-link or messaging-link patterns.",
+            subject_ids=[subject_id],
+            risk_types=[RiskType.LINK_RISK],
+        )
+    )
+    analyze_subject(subject_id)
