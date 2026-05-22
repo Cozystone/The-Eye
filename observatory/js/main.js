@@ -141,7 +141,16 @@ class Observatory {
       status: document.getElementById('mobile-bridge-status'),
       hint: document.getElementById('mobile-bridge-hint'),
     };
+    this._viewMode = '3d';
+    this._radarEls = {
+      panel: document.getElementById('radar2d-panel'),
+      canvas: document.getElementById('radar2d-canvas'),
+      status: document.getElementById('radar2d-status'),
+      meta: document.getElementById('radar2d-meta'),
+      toggle: document.getElementById('view-toggle-btn'),
+    };
     this._initMobileBridge();
+    this._initViewToggle();
 
     // State
     this._autopilot = false;
@@ -537,6 +546,9 @@ class Observatory {
           this._showFps = !this._showFps;
           document.getElementById('fps-counter').style.display = this._showFps ? 'block' : 'none';
           break;
+        case 'v':
+          this._toggleViewMode();
+          break;
         case 's': this._hud.toggleSettings(); break;
         case ' ':
           e.preventDefault();
@@ -728,6 +740,27 @@ class Observatory {
   _disconnectWS() {
     if (this._ws) { this._ws.close(); this._ws = null; }
     this._liveData = null;
+  }
+
+  _initViewToggle() {
+    this._radarEls.toggle?.addEventListener('click', () => this._toggleViewMode());
+    this._applyViewMode();
+  }
+
+  _toggleViewMode() {
+    this._viewMode = this._viewMode === '2d' ? '3d' : '2d';
+    this._applyViewMode();
+  }
+
+  _applyViewMode() {
+    const is2d = this._viewMode === '2d';
+    document.body.classList.toggle('view-mode-2d', is2d);
+    this._radarEls.panel?.classList.toggle('radar2d-panel--hidden', !is2d);
+    this._radarEls.toggle?.classList.toggle('view-toggle-btn--active', is2d);
+    if (this._radarEls.toggle) {
+      this._radarEls.toggle.textContent = is2d ? '3D VIEW' : '2D RADAR';
+    }
+    this._controls.enabled = !is2d && !this._autopilot;
   }
 
   _adaptLiveData(data, elapsed) {
@@ -961,6 +994,7 @@ class Observatory {
     this._hud.updateSparkline(data);
     this._mapper.update(data);
     this._syncSpatialMap(this._mapper.getSceneState());
+    this._renderRadar2D(data, elapsed);
 
     // Router LED
     this._routerLed.material.opacity = 0.5 + 0.5 * Math.sin(elapsed * 8);
@@ -1121,6 +1155,129 @@ class Observatory {
     this._fieldMat.opacity = Math.max(0.18, this.settings.field * (0.45 + confidence * 0.8 + peak * 0.35));
     this._fieldPoints.geometry.attributes.color.needsUpdate = true;
     this._fieldPoints.geometry.attributes.size.needsUpdate = true;
+  }
+
+  _renderRadar2D(data, elapsed) {
+    const canvas = this._radarEls.canvas;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+    const cx = width * 0.5;
+    const cy = height * 0.55;
+    const radius = Math.min(width * 0.38, height * 0.38);
+    const field = Array.isArray(data?.signal_field?.values) ? data.signal_field.values : [];
+    const grid = Array.isArray(data?.signal_field?.grid_size) ? data.signal_field.grid_size : [20, 1, 20];
+    const gridW = Math.max(1, Number(grid[0] || 20));
+    const gridH = Math.max(1, Number(grid[2] || 20));
+
+    ctx.clearRect(0, 0, width, height);
+    const bg = ctx.createRadialGradient(cx, cy, radius * 0.08, cx, cy, radius * 1.12);
+    bg.addColorStop(0, 'rgba(10,46,70,0.52)');
+    bg.addColorStop(0.55, 'rgba(5,18,31,0.92)');
+    bg.addColorStop(1, 'rgba(2,8,14,1)');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.save();
+    ctx.translate(cx, cy);
+
+    for (let ring = 1; ring <= 5; ring++) {
+      ctx.beginPath();
+      ctx.strokeStyle = ring === 5 ? 'rgba(120,188,255,0.22)' : 'rgba(62,255,138,0.12)';
+      ctx.lineWidth = 1;
+      ctx.arc(0, 0, radius * (ring / 5), 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    for (let ray = 0; ray < 12; ray++) {
+      const angle = (Math.PI * 2 * ray) / 12;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
+      ctx.strokeStyle = 'rgba(100,170,220,0.08)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    for (let z = 0; z < gridH; z++) {
+      for (let x = 0; x < gridW; x++) {
+        const idx = z * gridW + x;
+        const value = Number(field[idx] || 0);
+        if (value <= 0.01) continue;
+        const px = ((x / Math.max(1, gridW - 1)) - 0.5) * radius * 1.6;
+        const py = ((z / Math.max(1, gridH - 1)) - 0.5) * radius * 1.35;
+        const size = 5 + value * 20;
+        const alpha = Math.min(0.94, 0.08 + value * 0.88);
+        const color = value > 0.72
+          ? `rgba(255,176,32,${alpha})`
+          : value > 0.45
+            ? `rgba(62,255,138,${alpha})`
+            : `rgba(32,144,255,${alpha * 0.9})`;
+        ctx.fillStyle = color;
+        ctx.fillRect(px - size * 0.5, py - size * 0.5, size, size);
+      }
+    }
+
+    const sweep = (elapsed * 0.95) % (Math.PI * 2);
+    const cone = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
+    cone.addColorStop(0, 'rgba(62,255,138,0.22)');
+    cone.addColorStop(1, 'rgba(62,255,138,0)');
+    ctx.rotate(sweep);
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.arc(0, 0, radius, -0.18, 0.18);
+    ctx.closePath();
+    ctx.fillStyle = cone;
+    ctx.fill();
+    ctx.rotate(-sweep);
+
+    ctx.beginPath();
+    ctx.strokeStyle = 'rgba(110,255,176,0.85)';
+    ctx.lineWidth = 2;
+    ctx.moveTo(0, 0);
+    ctx.lineTo(Math.cos(sweep) * radius, Math.sin(sweep) * radius);
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(255,176,32,0.95)';
+    ctx.beginPath();
+    ctx.arc(-radius * 0.62, -radius * 0.42, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.font = '12px JetBrains Mono';
+    ctx.fillText('ROUTER', -radius * 0.55, -radius * 0.46);
+
+    const persons = Array.isArray(data?.persons) ? data.persons : [];
+    const tracker = this._mapper?.getSceneState?.()?.tracking;
+    let personX = 0;
+    let personY = 0;
+    if (tracker?.active) {
+      const map = this._mapper?.getSceneState?.()?.map;
+      const apartment = map?.apartment;
+      if (apartment) {
+        personX = (((tracker.x - apartment.x) / apartment.w) - 0.5) * radius * 1.6;
+        personY = (((tracker.y - apartment.y) / apartment.h) - 0.5) * radius * 1.35;
+      }
+    } else if (persons[0]?.position) {
+      personX = (Number(persons[0].position[0] || 0) / 6) * radius;
+      personY = (Number(persons[0].position[2] || 0) / 5) * radius;
+    }
+    ctx.beginPath();
+    ctx.fillStyle = 'rgba(244,255,249,0.96)';
+    ctx.arc(personX, personY, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.strokeStyle = 'rgba(62,255,138,0.9)';
+    ctx.lineWidth = 2;
+    ctx.arc(personX, personY, 16, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.restore();
+
+    const source = String(data?.source || 'wifi');
+    const confidence = Math.round(Number(data?.classification?.confidence || 0) * 100);
+    const rssi = Number(data?.features?.mean_rssi ?? -100);
+    this._radarEls.status.textContent = `${source} | RSSI ${rssi.toFixed(1)} dBm | confidence ${confidence}%`;
+    this._radarEls.meta.textContent = `GRID ${gridW}x${gridH} | ${data?.rf_visualization?.mode || 'live'} | persons ${Number(data?.estimated_persons || 0)}`;
   }
 
   // ---- FPS ----

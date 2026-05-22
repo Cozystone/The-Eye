@@ -8,6 +8,16 @@
 </head>
 <body>
   <canvas id="observatory-canvas"></canvas>
+  <section id="radar2d-panel" class="radar2d-panel radar2d-panel--hidden" aria-label="2D RF radar view">
+    <div class="radar2d-header">
+      <div>
+        <div class="radar2d-kicker">2D RF Radar</div>
+        <div id="radar2d-status" class="radar2d-status">Waiting for live RF field</div>
+      </div>
+      <div id="radar2d-meta" class="radar2d-meta">GRID 20x20</div>
+    </div>
+    <canvas id="radar2d-canvas" width="960" height="640"></canvas>
+  </section>
 
   <!-- ======= HUD Overlay ======= -->
   <div id="hud">
@@ -44,6 +54,7 @@
       </div>
       <div id="scenario-description"></div>
       <div id="fps-counter" style="display:none">60 FPS</div>
+      <button id="view-toggle-btn" class="view-toggle-btn" title="Toggle 2D radar view">2D RADAR</button>
       <button id="settings-btn" title="Settings">&#9881;</button>
     </div>
 
@@ -130,6 +141,7 @@
       <span class="key-hint">[A] Orbit</span>
       <span class="key-hint">[D] Scenario</span>
       <span class="key-hint">[F] FPS</span>
+      <span class="key-hint">[V] 2D View</span>
       <span class="key-hint">[S] Settings</span>
       <span class="key-hint">[Space] Pause</span>
     </div>
