@@ -42,6 +42,7 @@ export class MapperOverlay {
         transitions: [],
       },
     };
+    this._autoDraftSeeded = false;
 
     this._els = {
       overlay: document.getElementById('mapper-overlay'),
@@ -75,11 +76,6 @@ export class MapperOverlay {
     };
 
     this._restore();
-    if (!this._state.map.draft && !this._state.map.final) {
-      const draft = this._generateDraft();
-      this._state.map.draft = draft;
-      this._state.map.final = clone(draft);
-    }
     this._bind();
     this._renderShell();
     this._renderMap();
@@ -121,6 +117,7 @@ export class MapperOverlay {
 
   update(data) {
     this._lastData = data;
+    this._backgroundPrimeFromLive(data);
     if (this._state.scan.active && data) {
       this._state.scan.samples.push(this._sampleFromData(data, false));
       while (this._state.scan.samples.length > 500) this._state.scan.samples.shift();
@@ -134,6 +131,26 @@ export class MapperOverlay {
     this._renderMap();
     this._renderMesh();
     this._persist();
+  }
+
+  _backgroundPrimeFromLive(data) {
+    if (!data || this._state.map.draft || this._state.map.final) return;
+
+    const sample = this._sampleFromData(data, false);
+    this._state.scan.samples.push(sample);
+    while (this._state.scan.samples.length > 48) this._state.scan.samples.shift();
+
+    if (this._state.scan.samples.length < 4) return;
+
+    const draft = this._generateDraft();
+    draft.meta.liveInferred = true;
+    this._state.map.draft = draft;
+    this._state.map.final = clone(draft);
+
+    if (!this._autoDraftSeeded) {
+      this._autoDraftSeeded = true;
+      this._log('live map inferred', 'Passive Wi-Fi measurements seeded the first 3D structure.');
+    }
   }
 
   startScan() {
@@ -790,6 +807,11 @@ export class MapperOverlay {
         map: { ...this._state.map, ...(parsed.map || {}) },
         tracking: { ...this._state.tracking, ...(parsed.tracking || {}) },
       };
+      const hasSavedMap = Boolean(this._state.map?.final?.meta?.savedAt || this._state.map?.draft?.meta?.savedAt);
+      if (!hasSavedMap) {
+        this._state.map.draft = null;
+        this._state.map.final = null;
+      }
       this._state.open = true;
     } catch {}
   }

@@ -424,16 +424,16 @@ class Observatory {
         new THREE.MeshStandardMaterial({
           color: 0xffb020,
           transparent: true,
-          opacity: 0.16,
+          opacity: 0.3,
           emissive: 0xffb020,
-          emissiveIntensity: 0.08,
-          roughness: 0.55,
-          metalness: 0.08,
+          emissiveIntensity: 0.18,
+          roughness: 0.38,
+          metalness: 0.12,
         })
       );
       const edges = new THREE.LineSegments(
         new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1)),
-        new THREE.LineBasicMaterial({ color: 0xffd9a0, transparent: true, opacity: 0.38 })
+        new THREE.LineBasicMaterial({ color: 0xffd9a0, transparent: true, opacity: 0.72 })
       );
       group.add(mesh);
       group.add(edges);
@@ -454,15 +454,15 @@ class Observatory {
       const z = this._mapToWorldZ(room.y + room.h / 2, map.apartment);
       const w = (room.w / map.apartment.w) * 12;
       const d = (room.h / map.apartment.h) * 10;
-      const h = 1.2 + (room.h / map.apartment.h) * 1.7;
+      const h = 1.8 + (room.h / map.apartment.h) * 2.4;
       group.position.set(x, h / 2, z);
       group.scale.set(w, h, d);
       const active = tracking?.roomId === room.id;
       group.userData.mesh.material.color.set(active ? 0x3eff8a : 0xffb020);
       group.userData.mesh.material.emissive.set(active ? 0x3eff8a : 0xffb020);
-      group.userData.mesh.material.opacity = active ? 0.24 : 0.14;
+      group.userData.mesh.material.opacity = active ? 0.4 : 0.26;
       group.userData.edges.material.color.set(active ? 0x94ffc0 : 0xffd9a0);
-      group.userData.edges.material.opacity = active ? 0.72 : 0.38;
+      group.userData.edges.material.opacity = active ? 0.95 : 0.72;
     });
 
     if (!this._spatialRouter) {
