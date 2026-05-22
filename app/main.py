@@ -398,6 +398,7 @@ def subject_ui(subject_id: str) -> HTMLResponse:
             raise
         subject = seed_demo_subject()
         return RedirectResponse(url=f"/ui/subjects/{subject.subject_id}", status_code=307)
+    has_real_data = summary.source_count > 0 and summary.post_count > 0
     point_rows = "".join(
         f"<li><strong>{point.label}</strong> ({point.precision.value if hasattr(point.precision, 'value') else point.precision}) - {point.observed_count}건 - {point.provenance}</li>"
         for point in map_data.points
@@ -410,6 +411,11 @@ def subject_ui(subject_id: str) -> HTMLResponse:
         f"<li>{edge.source} -> {edge.target} [{edge.label}]</li>"
         for edge in graph.edges[:12]
     ) or "<li>아직 네트워크 엣지가 없습니다.</li>"
+    notice_html = (
+        "<div class=\"notice\">이 핸들은 아직 실제 수집 소스가 연결되지 않아 분석 결과를 만들 수 없습니다. 현재는 빈 워크스페이스만 생성된 상태입니다.</div>"
+        if not has_real_data else
+        "<div class=\"notice\">현재 화면은 연결된 소스에서 들어온 공개 데이터만 표시합니다.</div>"
+    )
     html = f"""
     <!doctype html>
     <html>
@@ -527,7 +533,7 @@ def subject_ui(subject_id: str) -> HTMLResponse:
             <div class="pill">리스크 {summary.risk_count}</div>
           </div>
           <p class="hint">지도 포인트는 현재 워크스페이스에 들어 있는 명시적 위치 태그 또는 업로드된 데이터만 표시합니다. 숨겨진 사적 위치를 추론하지 않습니다.</p>
-          <div class="notice">입력한 핸들에 실제 수집 소스가 아직 연결되지 않은 경우, 화면 작동 확인을 위해 핸들 기반 프리뷰 데이터가 자동 생성될 수 있습니다.</div>
+          {notice_html}
           <div class="mini-grid">
             <div class="mini"><strong>위치 신호</strong><span>{summary.public_location_count}</span></div>
             <div class="mini"><strong>활성 시간</strong><span>{len(summary.active_hours_utc)}</span></div>

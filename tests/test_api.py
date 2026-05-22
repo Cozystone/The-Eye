@@ -326,7 +326,7 @@ def test_root_and_demo_routes() -> None:
     assert stale.status_code == 307
     assert stale.headers["location"].startswith("/ui/subjects/subject-citysignals-media")
 
-    preview_lookup = client.get("/lookup?handle=@new_handle", follow_redirects=True)
-    assert preview_lookup.status_code == 200
-    assert "핸들 기반 프리뷰 데이터" in preview_lookup.text
-    assert "게시물 2" in preview_lookup.text
+    empty_lookup = client.get("/lookup?handle=@new_handle", follow_redirects=True)
+    assert empty_lookup.status_code == 200
+    assert "실제 수집 소스가 연결되지 않아" in empty_lookup.text
+    assert "게시물 0" in empty_lookup.text
