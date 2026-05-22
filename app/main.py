@@ -79,12 +79,13 @@ def root() -> HTMLResponse:
       <title>The Eye</title>
       <style>
         :root {
-          --panel: rgba(2, 6, 23, 0.82);
-          --panel-border: rgba(148, 163, 184, 0.18);
+          --panel: rgba(2, 6, 23, 0.72);
+          --panel-strong: rgba(2, 6, 23, 0.86);
+          --panel-border: rgba(148, 163, 184, 0.16);
           --ink: #e2e8f0;
           --muted: #94a3b8;
-          --accent: #f97316;
-          --accent-dark: #7c2d12;
+          --accent: #f59e0b;
+          --accent-2: #fb7185;
         }
         * { box-sizing: border-box; }
         body { margin: 0; font-family: Arial, sans-serif; color: var(--ink); background: #020617; }
@@ -92,57 +93,66 @@ def root() -> HTMLResponse:
         .shade {
           position: fixed; inset: 0; z-index: 1;
           background:
-            linear-gradient(90deg, rgba(2, 6, 23, 0.88) 0%, rgba(2, 6, 23, 0.78) 34%, rgba(2, 6, 23, 0.42) 62%, rgba(2, 6, 23, 0.28) 100%);
+            radial-gradient(circle at top right, rgba(245, 158, 11, 0.16), transparent 24%),
+            linear-gradient(180deg, rgba(2, 6, 23, 0.08) 0%, rgba(2, 6, 23, 0.26) 35%, rgba(2, 6, 23, 0.76) 100%);
         }
-        .panel {
-          position: relative; z-index: 2; min-height: 100vh; display: flex; align-items: center;
-          padding: 28px;
+        .panel { position: relative; z-index: 2; min-height: 100vh; padding: 24px; }
+        .topbar {
+          display: flex; justify-content: space-between; align-items: center; gap: 16px;
+          padding: 18px 20px; border-radius: 22px; background: var(--panel);
+          border: 1px solid var(--panel-border); backdrop-filter: blur(18px);
+          box-shadow: 0 28px 80px rgba(0, 0, 0, 0.34);
         }
-        .shell {
-          width: min(560px, 100%);
-          background: var(--panel);
-          border: 1px solid var(--panel-border);
-          border-radius: 24px;
-          backdrop-filter: blur(14px);
-          padding: 28px;
-          box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
-        }
-        .eyebrow {
+        .brandline {
           display: inline-flex; align-items: center; gap: 8px;
-          color: #fdba74; font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
-          margin-bottom: 14px;
+          color: #fdba74; font-size: 12px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
         }
-        h1 { margin: 0 0 10px; font-size: clamp(42px, 6vw, 72px); line-height: 0.95; }
-        .lead { margin: 0; color: var(--muted); font-size: 18px; line-height: 1.6; }
+        .brandblock strong { display: block; font-size: 28px; line-height: 0.95; margin-top: 6px; }
+        .brandblock span { display: block; color: var(--muted); font-size: 14px; margin-top: 8px; }
+        .shell {
+          position: absolute; top: 108px; left: 24px; width: min(560px, calc(100vw - 48px));
+          background: var(--panel-strong); border: 1px solid var(--panel-border);
+          border-radius: 28px; backdrop-filter: blur(18px); padding: 28px;
+          box-shadow: 0 28px 80px rgba(0, 0, 0, 0.34);
+        }
+        h1 { margin: 0 0 10px; font-size: clamp(48px, 7vw, 78px); line-height: 0.92; max-width: 7ch; }
+        .lead { margin: 0; color: var(--muted); font-size: 18px; line-height: 1.6; max-width: 46ch; }
         .search {
           display: flex; gap: 10px; margin: 26px 0 18px; flex-wrap: wrap;
-          padding: 10px; border-radius: 18px; background: rgba(15, 23, 42, 0.72); border: 1px solid rgba(148, 163, 184, 0.16);
+          padding: 10px; border-radius: 20px; background: rgba(15, 23, 42, 0.72); border: 1px solid rgba(148, 163, 184, 0.14);
         }
         .search input {
           flex: 1 1 260px; min-width: 0; padding: 16px 18px; border-radius: 14px;
-          border: 1px solid rgba(148, 163, 184, 0.12); background: rgba(2, 6, 23, 0.85); color: var(--ink); font-size: 18px;
+          border: 1px solid rgba(148, 163, 184, 0.12); background: rgba(2, 6, 23, 0.9); color: var(--ink); font-size: 18px;
         }
         .search button, a.btn {
           appearance: none; border: 0; cursor: pointer; text-decoration: none;
           display: inline-flex; align-items: center; justify-content: center;
           padding: 16px 18px; border-radius: 14px; font-weight: 700;
         }
-        .search button { background: var(--accent); color: #111827; min-width: 138px; }
+        .search button { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #111827; min-width: 138px; }
         .actions { display: flex; gap: 10px; flex-wrap: wrap; margin: 6px 0 24px; }
-        a.btn.secondary { background: rgba(15, 23, 42, 0.86); color: var(--ink); border: 1px solid rgba(148, 163, 184, 0.16); }
-        .stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+        a.btn.secondary { background: rgba(15, 23, 42, 0.86); color: var(--ink); border: 1px solid rgba(148, 163, 184, 0.14); }
+        .stats {
+          position: absolute; left: 24px; right: 24px; bottom: 24px;
+          display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px;
+        }
         .card {
           padding: 16px 18px; border-radius: 18px; background: rgba(15, 23, 42, 0.78);
-          border: 1px solid rgba(148, 163, 184, 0.12);
+          border: 1px solid rgba(148, 163, 184, 0.1); backdrop-filter: blur(14px);
+          box-shadow: 0 16px 40px rgba(0, 0, 0, 0.2);
         }
         .card strong { display: block; font-size: 14px; margin-bottom: 6px; }
         .card span { color: var(--muted); font-size: 14px; line-height: 1.5; }
-        .foot { margin-top: 20px; color: var(--muted); font-size: 13px; }
-        .foot code { background: rgba(15, 23, 42, 0.9); padding: 2px 6px; border-radius: 6px; }
+        .foot { margin-top: 18px; color: var(--muted); font-size: 13px; }
+        @media (max-width: 1100px) {
+          .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
         @media (max-width: 720px) {
-          .panel { padding: 16px; align-items: flex-end; }
-          .shell { padding: 22px; border-radius: 20px; }
-          .stats { grid-template-columns: 1fr; }
+          .panel { padding: 14px; }
+          .topbar { padding: 14px 16px; border-radius: 18px; }
+          .shell { top: 92px; left: 14px; width: calc(100vw - 28px); padding: 22px; border-radius: 22px; }
+          .stats { left: 14px; right: 14px; bottom: 14px; grid-template-columns: 1fr; }
           .search button { width: 100%; }
         }
       </style>
@@ -152,8 +162,15 @@ def root() -> HTMLResponse:
       <div id="hero-map"></div>
       <div class="shade"></div>
       <div class="panel">
+        <div class="topbar">
+          <div class="brandblock">
+            <div class="brandline">Satellite Workspace</div>
+            <strong>The Eye</strong>
+            <span>Map-first public signal desk</span>
+          </div>
+          <a class="btn secondary" href="/demo">Launch Demo</a>
+        </div>
         <div class="shell">
-          <div class="eyebrow">Satellite Workspace</div>
           <h1>The Eye</h1>
           <p class="lead">
             Map-first public signal workspace. Drop in an Instagram handle, open the subject view, and start from satellite context instead of a generic landing page.
@@ -167,25 +184,25 @@ def root() -> HTMLResponse:
             <a class="btn secondary" href="/docs">API Docs</a>
             <a class="btn secondary" href="/api">JSON API</a>
           </div>
-          <div class="stats">
-            <div class="card">
-              <strong>Satellite-first layout</strong>
-              <span>Esri imagery fills the whole viewport from the first paint so the map is the product, not a secondary widget.</span>
-            </div>
-            <div class="card">
-              <strong>Handle lookup</strong>
-              <span>Input accepts a public handle label and opens a subject workspace immediately. Demo handles are pre-seeded.</span>
-            </div>
-            <div class="card">
-              <strong>Observed signals</strong>
-              <span>Explicit public place tags, posting cadence, linked domains, and visible interaction edges are summarized with provenance.</span>
-            </div>
-            <div class="card">
-              <strong>Fast entry</strong>
-              <span>Use <code>@citysignals.media</code>, <code>@demo</code>, or <code>@sample</code> to open the seeded map view instantly.</span>
-            </div>
-          </div>
           <div class="foot">Health: <a href="/health" style="color:#fdba74;">/health</a></div>
+        </div>
+        <div class="stats">
+          <div class="card">
+            <strong>Satellite-first layout</strong>
+            <span>Esri imagery fills the whole viewport from the first paint so the map is the product, not a secondary widget.</span>
+          </div>
+          <div class="card">
+            <strong>Handle lookup</strong>
+            <span>Input accepts a public handle label and opens a subject workspace immediately. Demo handles are pre-seeded.</span>
+          </div>
+          <div class="card">
+            <strong>Observed signals</strong>
+            <span>Explicit public place tags, posting cadence, linked domains, and visible interaction edges are summarized with provenance.</span>
+          </div>
+          <div class="card">
+            <strong>Fast entry</strong>
+            <span>Use <code>@citysignals.media</code>, <code>@demo</code>, or <code>@sample</code> to open the seeded map view instantly.</span>
+          </div>
         </div>
       </div>
       <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -377,50 +394,88 @@ def subject_ui(subject_id: str) -> HTMLResponse:
       <style>
         :root {{
           --bg: #020617;
-          --panel: #0f172a;
-          --panel-soft: #111827;
-          --stroke: #334155;
+          --panel: rgba(2, 6, 23, 0.74);
+          --panel-soft: rgba(15, 23, 42, 0.88);
+          --stroke: rgba(148, 163, 184, 0.14);
           --ink: #e2e8f0;
           --muted: #94a3b8;
-          --accent: #f97316;
+          --accent: #f59e0b;
+          --accent-2: #fb7185;
         }}
         * {{ box-sizing: border-box; }}
         body {{ font-family: Arial, sans-serif; margin: 0; background: var(--bg); color: var(--ink); }}
+        #map {{ position: fixed; inset: 0; z-index: 0; }}
+        .shade {{
+          position: fixed; inset: 0; z-index: 1; pointer-events: none;
+          background:
+            radial-gradient(circle at top right, rgba(251, 113, 133, 0.12), transparent 24%),
+            linear-gradient(180deg, rgba(2, 6, 23, 0.1) 0%, rgba(2, 6, 23, 0.3) 30%, rgba(2, 6, 23, 0.76) 100%);
+        }}
+        .viewport {{ position: relative; z-index: 2; min-height: 100vh; padding: 18px; }}
         .topbar {{
-          position: sticky; top: 0; z-index: 1000;
           display: flex; justify-content: space-between; gap: 16px; align-items: center;
-          padding: 14px 18px; background: rgba(2, 6, 23, 0.92); border-bottom: 1px solid #1e293b; backdrop-filter: blur(12px);
+          padding: 16px 18px; background: var(--panel); border: 1px solid var(--stroke);
+          border-radius: 22px; backdrop-filter: blur(16px); box-shadow: 0 24px 70px rgba(0, 0, 0, 0.34);
         }}
         .brand strong {{ display: block; font-size: 18px; }}
         .brand span {{ color: var(--muted); font-size: 13px; }}
         .lookup {{ display: flex; gap: 10px; width: min(520px, 100%); }}
         .lookup input {{
-          flex: 1; padding: 12px 14px; border-radius: 12px; border: 1px solid #1e293b;
-          background: #0f172a; color: var(--ink);
+          flex: 1; padding: 13px 14px; border-radius: 14px; border: 1px solid var(--stroke);
+          background: rgba(2, 6, 23, 0.9); color: var(--ink);
         }}
         .lookup button {{
-          padding: 12px 16px; border-radius: 12px; border: 0; background: var(--accent); color: #111827; font-weight: 700; cursor: pointer;
+          padding: 13px 16px; border-radius: 14px; border: 0;
+          background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #111827; font-weight: 700; cursor: pointer;
         }}
-        .grid {{ display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(320px, 0.9fr); gap: 16px; padding: 18px; }}
-        .card {{ background: var(--panel-soft); border: 1px solid var(--stroke); border-radius: 16px; padding: 16px; }}
+        .floating {{
+          position: absolute; top: 94px; left: 18px; width: min(560px, calc(100vw - 36px));
+          display: grid; gap: 14px;
+        }}
+        .sidepanel {{
+          position: absolute; right: 18px; top: 94px; width: min(380px, calc(100vw - 36px));
+          max-height: calc(100vh - 112px); overflow: auto; display: grid; gap: 14px;
+        }}
+        .card {{
+          background: var(--panel-soft); border: 1px solid var(--stroke); border-radius: 22px; padding: 18px;
+          backdrop-filter: blur(16px); box-shadow: 0 24px 70px rgba(0, 0, 0, 0.26);
+        }}
         h1,h2 {{ margin-top: 0; }}
-        .map {{ height: calc(100vh - 170px); min-height: 520px; border-radius: 16px; overflow: hidden; }}
         .meta {{ display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }}
-        .pill {{ background: #1e293b; padding: 7px 11px; border-radius: 999px; color: #cbd5e1; }}
+        .pill {{ background: rgba(15, 23, 42, 0.9); padding: 7px 11px; border-radius: 999px; color: #cbd5e1; border: 1px solid rgba(148, 163, 184, 0.08); }}
         .hint {{ margin: 10px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }}
         ul {{ padding-left: 18px; }}
         li {{ margin-bottom: 8px; }}
         a {{ color: #fdba74; }}
+        .hero-title {{ margin-bottom: 6px; font-size: clamp(28px, 4vw, 42px); line-height: 0.95; }}
+        .subtle {{ color: var(--muted); font-size: 14px; line-height: 1.6; }}
+        .mini-grid {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }}
+        .mini {{ padding: 12px 13px; border-radius: 16px; background: rgba(15, 23, 42, 0.74); border: 1px solid rgba(148, 163, 184, 0.08); }}
+        .mini strong {{ display: block; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #fdba74; margin-bottom: 4px; }}
+        .mini span {{ color: var(--ink); font-size: 18px; }}
         @media (max-width: 980px) {{
-          .grid {{ grid-template-columns: 1fr; }}
-          .map {{ height: 62vh; min-height: 420px; }}
-          .topbar {{ flex-direction: column; align-items: stretch; }}
+          .viewport {{ padding: 14px; }}
+          .topbar {{ flex-direction: column; align-items: stretch; border-radius: 18px; }}
           .lookup {{ width: 100%; }}
+          .floating {{
+            position: static;
+            width: 100%;
+            margin-top: 14px;
+          }}
+          .sidepanel {{
+            position: static;
+            width: 100%;
+            max-height: none;
+            margin-top: 14px;
+          }}
         }}
       </style>
       <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     </head>
     <body>
+      <div id="map"></div>
+      <div class="shade"></div>
+      <div class="viewport">
       <div class="topbar">
         <div class="brand">
           <strong>The Eye</strong>
@@ -431,19 +486,26 @@ def subject_ui(subject_id: str) -> HTMLResponse:
           <button type="submit">Open</button>
         </form>
       </div>
-      <div class="grid">
+      <div class="floating">
         <div class="card">
-          <h1>{summary.subject.display_name}</h1>
-          <p>@{summary.subject.handle}</p>
+          <h1 class="hero-title">{summary.subject.display_name}</h1>
+          <p class="subtle">@{summary.subject.handle}</p>
           <div class="meta">
             <div class="pill">posts {summary.post_count}</div>
             <div class="pill">sources {summary.source_count}</div>
             <div class="pill">relationships {summary.relationship_count}</div>
             <div class="pill">risks {summary.risk_count}</div>
           </div>
-          <div id="map" class="map"></div>
           <p class="hint">Map points reflect explicit public location labels or uploaded subject data already present in the workspace. This demo does not infer hidden private location.</p>
+          <div class="mini-grid">
+            <div class="mini"><strong>Signals</strong><span>{summary.public_location_count}</span></div>
+            <div class="mini"><strong>Active Hours</strong><span>{len(summary.active_hours_utc)}</span></div>
+            <div class="mini"><strong>Topics</strong><span>{len(summary.top_topics)}</span></div>
+            <div class="mini"><strong>Domains</strong><span>{len(summary.recurring_domains)}</span></div>
+          </div>
         </div>
+      </div>
+      <div class="sidepanel">
         <div class="card">
           <h2>Top Topics</h2>
           <ul>{topic_rows}</ul>
@@ -453,10 +515,11 @@ def subject_ui(subject_id: str) -> HTMLResponse:
           <ul>{edge_rows}</ul>
         </div>
       </div>
+      </div>
       <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
       <script>
         const points = {map_data.model_dump_json()};
-        const map = L.map('map').setView([20, 0], 2);
+        const map = L.map('map', {{ zoomControl: false }}).setView([20, 0], 2);
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{{z}}/{{y}}/{{x}}', {{
           maxZoom: 18,
           attribution: 'Tiles &copy; Esri'
