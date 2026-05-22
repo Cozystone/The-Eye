@@ -75,6 +75,11 @@ export class MapperOverlay {
     };
 
     this._restore();
+    if (!this._state.map.draft && !this._state.map.final) {
+      const draft = this._generateDraft();
+      this._state.map.draft = draft;
+      this._state.map.final = clone(draft);
+    }
     this._bind();
     this._renderShell();
     this._renderMap();
