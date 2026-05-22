@@ -67,6 +67,23 @@ app = FastAPI(
 )
 
 
+@app.get("/")
+def root() -> dict[str, object]:
+    return {
+        "name": "Threat Response Platform Beta",
+        "status": "ok",
+        "docs": "/docs",
+        "health": "/health",
+        "subject_ui_example": "/ui/subjects/{subject_id}",
+        "features": [
+            "incident response case platform",
+            "public account intelligence summary",
+            "map and network graph views",
+            "watchlists and alerts",
+        ],
+    }
+
+
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     return HealthResponse(status="ok")
