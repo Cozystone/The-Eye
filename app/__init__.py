@@ -1,1 +1,0 @@
-"""Threat response platform beta."""

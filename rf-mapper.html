@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RF Apartment Mapper</title>
+  <link rel="stylesheet" href="./rf-mapper.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="eyebrow">LOCALHOST RF MAPPER</div>
+        <h1>Apartment Scan, Edit, Track</h1>
+        <p>RSSI-only structure draft with editable 3D map and live zone tracking.</p>
+      </div>
+
+      <section class="panel panel-modes">
+        <div class="mode-switch" role="tablist" aria-label="Mode switch">
+          <button class="mode-btn active" data-mode="scan">Scan</button>
+          <button class="mode-btn" data-mode="edit">Edit</button>
+          <button class="mode-btn" data-mode="track">Track</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title">Live Feed</div>
+        <div class="metric-grid">
+          <div class="metric">
+            <span>Source</span>
+            <strong id="metric-source">-</strong>
+          </div>
+          <div class="metric">
+            <span>Presence</span>
+            <strong id="metric-presence">-</strong>
+          </div>
+          <div class="metric">
+            <span>BSSIDs</span>
+            <strong id="metric-bssids">0</strong>
+          </div>
+          <div class="metric">
+            <span>Mean RSSI</span>
+            <strong id="metric-rssi">0</strong>
+          </div>
+          <div class="metric">
+            <span>Variance</span>
+            <strong id="metric-variance">0</strong>
+          </div>
+          <div class="metric">
+            <span>Motion</span>
+            <strong id="metric-motion">0</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" data-pane="scan">
+        <div class="panel-title">Scan Session</div>
+        <div class="actions">
+          <button id="start-scan-btn" class="primary">Start Passive Scan</button>
+          <button id="stop-scan-btn">Stop + Generate Draft</button>
+          <button id="mark-scan-btn">Add Scan Mark</button>
+          <button id="reset-scan-btn">Reset Scan</button>
+        </div>
+        <div class="summary-list">
+          <div><span>Status</span><strong id="scan-status">Idle</strong></div>
+          <div><span>Samples</span><strong id="scan-samples">0</strong></div>
+          <div><span>Marks</span><strong id="scan-marks">0</strong></div>
+          <div><span>Draft Confidence</span><strong id="scan-confidence">0%</strong></div>
+        </div>
+        <div id="scan-log" class="timeline"></div>
+      </section>
+
+      <section class="panel hidden" data-pane="edit">
+        <div class="panel-title">Map Editor</div>
+        <div class="actions">
+          <button id="save-map-btn" class="primary">Save Final Map</button>
+          <button id="reset-map-btn">Reload Draft</button>
+        </div>
+        <div class="summary-list">
+          <div><span>Rooms</span><strong id="edit-room-count">0</strong></div>
+          <div><span>Doorways</span><strong id="edit-door-count">0</strong></div>
+          <div><span>Zones</span><strong id="edit-zone-count">0</strong></div>
+          <div><span>Router Estimate</span><strong id="edit-router">Unknown</strong></div>
+        </div>
+        <div class="editor-help">
+          <p>Drag room bodies to move them.</p>
+          <p>Drag corner handles to resize.</p>
+          <p>Click a room to rename it.</p>
+        </div>
+      </section>
+
+      <section class="panel hidden" data-pane="track">
+        <div class="panel-title">Tracking</div>
+        <div class="actions">
+          <button id="start-track-btn" class="primary">Start Tracking</button>
+          <button id="stop-track-btn">Stop Tracking</button>
+        </div>
+        <div class="summary-list">
+          <div><span>Current Room</span><strong id="track-room">None</strong></div>
+          <div><span>Current Zone</span><strong id="track-zone">None</strong></div>
+          <div><span>Confidence</span><strong id="track-confidence">0%</strong></div>
+          <div><span>Transition</span><strong id="track-transition">Waiting</strong></div>
+          <div><span>Track X</span><strong id="track-x">0</strong></div>
+          <div><span>Track Y</span><strong id="track-y">0</strong></div>
+        </div>
+        <div id="track-events" class="timeline"></div>
+      </section>
+    </aside>
+
+    <main class="workspace">
+      <section class="hero panel wide">
+        <div>
+          <div class="eyebrow">STRUCTURE HYPOTHESIS</div>
+          <h2 id="hero-title">Passive scan idle</h2>
+          <p id="hero-copy">Start a scan to accumulate Wi-Fi fingerprints, draft room boundaries, then refine and track on top of that map.</p>
+        </div>
+        <div class="hero-badges">
+          <span id="quality-badge" class="pill">quality: unknown</span>
+          <span id="map-badge" class="pill pill-warn">draft unavailable</span>
+          <span id="tracking-badge" class="pill">tracking: off</span>
+        </div>
+      </section>
+
+      <section class="workspace-grid">
+        <div class="panel stage">
+          <div class="stage-header">
+            <div>
+              <div class="eyebrow">TOP VIEW</div>
+              <h3>Editable Floor Draft</h3>
+            </div>
+            <div class="legend">
+              <span><i class="dot dot-room"></i>room</span>
+              <span><i class="dot dot-zone"></i>zone</span>
+              <span><i class="dot dot-person"></i>person</span>
+            </div>
+          </div>
+          <svg id="plan-svg" viewBox="0 0 1000 720" aria-label="Editable floor plan"></svg>
+        </div>
+
+        <div class="panel stage">
+          <div class="stage-header">
+            <div>
+              <div class="eyebrow">3D VIEW</div>
+              <h3>Extruded Apartment Mesh</h3>
+            </div>
+            <div id="mesh-caption" class="mesh-caption">2D inference rendered as a 3D overview.</div>
+          </div>
+          <canvas id="mesh-canvas" width="960" height="720" aria-label="3D apartment mesh"></canvas>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="./rf-mapper.js"></script>
+</body>
+</html>
