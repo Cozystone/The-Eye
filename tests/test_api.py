@@ -298,7 +298,8 @@ def test_subject_public_intelligence_workflow() -> None:
 def test_root_and_demo_routes() -> None:
     root = client.get("/")
     assert root.status_code == 200
-    assert "Open Live Demo" in root.text
+    assert "@instagram_id" in root.text
+    assert "Satellite-first" in root.text
 
     api_root = client.get("/api")
     assert api_root.status_code == 200
@@ -312,3 +313,7 @@ def test_root_and_demo_routes() -> None:
     demo = client.get("/demo", follow_redirects=False)
     assert demo.status_code == 307
     assert demo.headers["location"].startswith("/ui/subjects/")
+
+    lookup = client.get("/lookup?handle=@citysignals.media", follow_redirects=False)
+    assert lookup.status_code == 307
+    assert lookup.headers["location"].startswith("/ui/subjects/")

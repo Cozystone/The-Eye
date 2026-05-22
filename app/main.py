@@ -55,6 +55,7 @@ from app.service import (
     create_watchlist,
     get_graph,
     get_subject_graph,
+    get_or_create_subject_by_handle,
     get_subject_map,
     get_subject_summary,
     list_alerts,
@@ -77,55 +78,134 @@ def root() -> HTMLResponse:
       <meta charset="utf-8" />
       <title>The Eye</title>
       <style>
-        body { font-family: Arial, sans-serif; margin: 0; background: #020617; color: #e2e8f0; }
-        .wrap { max-width: 1100px; margin: 0 auto; padding: 40px 24px 64px; }
-        h1 { font-size: 52px; margin-bottom: 8px; }
-        p.lead { color: #94a3b8; font-size: 18px; max-width: 720px; }
-        .actions { display: flex; gap: 12px; flex-wrap: wrap; margin: 28px 0 36px; }
-        a.btn {
-          background: #38bdf8; color: #082f49; text-decoration: none; font-weight: 700;
-          padding: 14px 18px; border-radius: 12px; display: inline-block;
+        :root {
+          --panel: rgba(2, 6, 23, 0.82);
+          --panel-border: rgba(148, 163, 184, 0.18);
+          --ink: #e2e8f0;
+          --muted: #94a3b8;
+          --accent: #f97316;
+          --accent-dark: #7c2d12;
         }
-        a.btn.secondary { background: #1e293b; color: #e2e8f0; border: 1px solid #334155; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
-        .card { background: #0f172a; border: 1px solid #1e293b; border-radius: 16px; padding: 18px; }
-        .card h2 { margin-top: 0; font-size: 20px; }
-        .meta { margin-top: 36px; color: #94a3b8; }
-        code { background: #111827; padding: 2px 6px; border-radius: 6px; }
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: Arial, sans-serif; color: var(--ink); background: #020617; }
+        #hero-map { position: fixed; inset: 0; z-index: 0; }
+        .shade {
+          position: fixed; inset: 0; z-index: 1;
+          background:
+            linear-gradient(90deg, rgba(2, 6, 23, 0.88) 0%, rgba(2, 6, 23, 0.78) 34%, rgba(2, 6, 23, 0.42) 62%, rgba(2, 6, 23, 0.28) 100%);
+        }
+        .panel {
+          position: relative; z-index: 2; min-height: 100vh; display: flex; align-items: center;
+          padding: 28px;
+        }
+        .shell {
+          width: min(560px, 100%);
+          background: var(--panel);
+          border: 1px solid var(--panel-border);
+          border-radius: 24px;
+          backdrop-filter: blur(14px);
+          padding: 28px;
+          box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+        }
+        .eyebrow {
+          display: inline-flex; align-items: center; gap: 8px;
+          color: #fdba74; font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+          margin-bottom: 14px;
+        }
+        h1 { margin: 0 0 10px; font-size: clamp(42px, 6vw, 72px); line-height: 0.95; }
+        .lead { margin: 0; color: var(--muted); font-size: 18px; line-height: 1.6; }
+        .search {
+          display: flex; gap: 10px; margin: 26px 0 18px; flex-wrap: wrap;
+          padding: 10px; border-radius: 18px; background: rgba(15, 23, 42, 0.72); border: 1px solid rgba(148, 163, 184, 0.16);
+        }
+        .search input {
+          flex: 1 1 260px; min-width: 0; padding: 16px 18px; border-radius: 14px;
+          border: 1px solid rgba(148, 163, 184, 0.12); background: rgba(2, 6, 23, 0.85); color: var(--ink); font-size: 18px;
+        }
+        .search button, a.btn {
+          appearance: none; border: 0; cursor: pointer; text-decoration: none;
+          display: inline-flex; align-items: center; justify-content: center;
+          padding: 16px 18px; border-radius: 14px; font-weight: 700;
+        }
+        .search button { background: var(--accent); color: #111827; min-width: 138px; }
+        .actions { display: flex; gap: 10px; flex-wrap: wrap; margin: 6px 0 24px; }
+        a.btn.secondary { background: rgba(15, 23, 42, 0.86); color: var(--ink); border: 1px solid rgba(148, 163, 184, 0.16); }
+        .stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+        .card {
+          padding: 16px 18px; border-radius: 18px; background: rgba(15, 23, 42, 0.78);
+          border: 1px solid rgba(148, 163, 184, 0.12);
+        }
+        .card strong { display: block; font-size: 14px; margin-bottom: 6px; }
+        .card span { color: var(--muted); font-size: 14px; line-height: 1.5; }
+        .foot { margin-top: 20px; color: var(--muted); font-size: 13px; }
+        .foot code { background: rgba(15, 23, 42, 0.9); padding: 2px 6px; border-radius: 6px; }
+        @media (max-width: 720px) {
+          .panel { padding: 16px; align-items: flex-end; }
+          .shell { padding: 22px; border-radius: 20px; }
+          .stats { grid-template-columns: 1fr; }
+          .search button { width: 100%; }
+        }
       </style>
+      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     </head>
     <body>
-      <div class="wrap">
-        <h1>The Eye</h1>
-        <p class="lead">
-          Public account intelligence demo with map, timeline, relationship graph, watchlists, and alerts.
-          Click once and the sample dataset is generated automatically.
-        </p>
-        <div class="actions">
-          <a class="btn" href="/demo">Open Live Demo</a>
-          <a class="btn secondary" href="/docs">Open API Docs</a>
-          <a class="btn secondary" href="/api">JSON API Info</a>
+      <div id="hero-map"></div>
+      <div class="shade"></div>
+      <div class="panel">
+        <div class="shell">
+          <div class="eyebrow">Satellite Workspace</div>
+          <h1>The Eye</h1>
+          <p class="lead">
+            Map-first public signal workspace. Drop in an Instagram handle, open the subject view, and start from satellite context instead of a generic landing page.
+          </p>
+          <form class="search" action="/lookup" method="get">
+            <input type="text" name="handle" placeholder="@instagram_id" value="@citysignals.media" />
+            <button type="submit">Open Map</button>
+          </form>
+          <div class="actions">
+            <a class="btn secondary" href="/demo">Live Demo</a>
+            <a class="btn secondary" href="/docs">API Docs</a>
+            <a class="btn secondary" href="/api">JSON API</a>
+          </div>
+          <div class="stats">
+            <div class="card">
+              <strong>Satellite-first layout</strong>
+              <span>Esri imagery fills the whole viewport from the first paint so the map is the product, not a secondary widget.</span>
+            </div>
+            <div class="card">
+              <strong>Handle lookup</strong>
+              <span>Input accepts a public handle label and opens a subject workspace immediately. Demo handles are pre-seeded.</span>
+            </div>
+            <div class="card">
+              <strong>Observed signals</strong>
+              <span>Explicit public place tags, posting cadence, linked domains, and visible interaction edges are summarized with provenance.</span>
+            </div>
+            <div class="card">
+              <strong>Fast entry</strong>
+              <span>Use <code>@citysignals.media</code>, <code>@demo</code>, or <code>@sample</code> to open the seeded map view instantly.</span>
+            </div>
+          </div>
+          <div class="foot">Health: <a href="/health" style="color:#fdba74;">/health</a></div>
         </div>
-        <div class="grid">
-          <div class="card">
-            <h2>Map View</h2>
-            <p>Explicit public location tags rendered on a Leaflet map with provenance on every point.</p>
-          </div>
-          <div class="card">
-            <h2>Network Graph</h2>
-            <p>Observed mentions, topics, and risk signals linked as a lightweight relationship graph.</p>
-          </div>
-          <div class="card">
-            <h2>Risk Signals</h2>
-            <p>Short-link patterns, suspicious clusters, and impersonation heuristics summarized into alerts.</p>
-          </div>
-          <div class="card">
-            <h2>API + UI</h2>
-            <p>FastAPI backend with Swagger at <code>/docs</code> and a working browser UI at <code>/demo</code>.</p>
-          </div>
-        </div>
-        <p class="meta">Health check: <a href="/health" style="color:#38bdf8;">/health</a></p>
       </div>
+      <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+      <script>
+        const map = L.map('hero-map', {{
+          zoomControl: false,
+          attributionControl: true,
+          dragging: false,
+          scrollWheelZoom: false,
+          doubleClickZoom: false,
+          boxZoom: false,
+          keyboard: false,
+          tap: false,
+          touchZoom: false,
+        }}).setView([37.5665, 126.9780], 5);
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{{z}}/{{y}}/{{x}}', {{
+          maxZoom: 18,
+          attribution: 'Tiles &copy; Esri'
+        }}).addTo(map);
+      </script>
     </body>
     </html>
     """
@@ -265,6 +345,12 @@ def demo_redirect() -> RedirectResponse:
     return RedirectResponse(url=f"/ui/subjects/{subject.subject_id}", status_code=307)
 
 
+@app.get("/lookup")
+def lookup_handle(handle: str) -> RedirectResponse:
+    subject = get_or_create_subject_by_handle(handle)
+    return RedirectResponse(url=f"/ui/subjects/{subject.subject_id}", status_code=307)
+
+
 @app.get("/ui/subjects/{subject_id}", response_class=HTMLResponse, responses={404: {"model": ErrorResponse}})
 def subject_ui(subject_id: str) -> HTMLResponse:
     summary = get_subject_summary(subject_id)
@@ -289,18 +375,62 @@ def subject_ui(subject_id: str) -> HTMLResponse:
       <meta charset="utf-8" />
       <title>{summary.subject.handle} intelligence view</title>
       <style>
-        body {{ font-family: Arial, sans-serif; margin: 0; background: #0f172a; color: #e2e8f0; }}
-        .grid {{ display: grid; grid-template-columns: 1.2fr 1fr; gap: 16px; padding: 20px; }}
-        .card {{ background: #111827; border: 1px solid #334155; border-radius: 12px; padding: 16px; }}
+        :root {{
+          --bg: #020617;
+          --panel: #0f172a;
+          --panel-soft: #111827;
+          --stroke: #334155;
+          --ink: #e2e8f0;
+          --muted: #94a3b8;
+          --accent: #f97316;
+        }}
+        * {{ box-sizing: border-box; }}
+        body {{ font-family: Arial, sans-serif; margin: 0; background: var(--bg); color: var(--ink); }}
+        .topbar {{
+          position: sticky; top: 0; z-index: 1000;
+          display: flex; justify-content: space-between; gap: 16px; align-items: center;
+          padding: 14px 18px; background: rgba(2, 6, 23, 0.92); border-bottom: 1px solid #1e293b; backdrop-filter: blur(12px);
+        }}
+        .brand strong {{ display: block; font-size: 18px; }}
+        .brand span {{ color: var(--muted); font-size: 13px; }}
+        .lookup {{ display: flex; gap: 10px; width: min(520px, 100%); }}
+        .lookup input {{
+          flex: 1; padding: 12px 14px; border-radius: 12px; border: 1px solid #1e293b;
+          background: #0f172a; color: var(--ink);
+        }}
+        .lookup button {{
+          padding: 12px 16px; border-radius: 12px; border: 0; background: var(--accent); color: #111827; font-weight: 700; cursor: pointer;
+        }}
+        .grid {{ display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(320px, 0.9fr); gap: 16px; padding: 18px; }}
+        .card {{ background: var(--panel-soft); border: 1px solid var(--stroke); border-radius: 16px; padding: 16px; }}
         h1,h2 {{ margin-top: 0; }}
-        .map {{ height: 420px; border-radius: 12px; overflow: hidden; }}
-        .meta {{ display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }}
-        .pill {{ background: #1e293b; padding: 6px 10px; border-radius: 999px; }}
+        .map {{ height: calc(100vh - 170px); min-height: 520px; border-radius: 16px; overflow: hidden; }}
+        .meta {{ display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }}
+        .pill {{ background: #1e293b; padding: 7px 11px; border-radius: 999px; color: #cbd5e1; }}
+        .hint {{ margin: 10px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }}
         ul {{ padding-left: 18px; }}
+        li {{ margin-bottom: 8px; }}
+        a {{ color: #fdba74; }}
+        @media (max-width: 980px) {{
+          .grid {{ grid-template-columns: 1fr; }}
+          .map {{ height: 62vh; min-height: 420px; }}
+          .topbar {{ flex-direction: column; align-items: stretch; }}
+          .lookup {{ width: 100%; }}
+        }}
       </style>
       <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     </head>
     <body>
+      <div class="topbar">
+        <div class="brand">
+          <strong>The Eye</strong>
+          <span>Satellite-first subject workspace</span>
+        </div>
+        <form class="lookup" action="/lookup" method="get">
+          <input type="text" name="handle" placeholder="@instagram_id" value="@{summary.subject.handle}" />
+          <button type="submit">Open</button>
+        </form>
+      </div>
       <div class="grid">
         <div class="card">
           <h1>{summary.subject.display_name}</h1>
@@ -312,6 +442,7 @@ def subject_ui(subject_id: str) -> HTMLResponse:
             <div class="pill">risks {summary.risk_count}</div>
           </div>
           <div id="map" class="map"></div>
+          <p class="hint">Map points reflect explicit public location labels or uploaded subject data already present in the workspace. This demo does not infer hidden private location.</p>
         </div>
         <div class="card">
           <h2>Top Topics</h2>
@@ -326,14 +457,20 @@ def subject_ui(subject_id: str) -> HTMLResponse:
       <script>
         const points = {map_data.model_dump_json()};
         const map = L.map('map').setView([20, 0], 2);
-        L.tileLayer('https://tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
-          maxZoom: 19,
-          attribution: '&copy; OpenStreetMap'
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{{z}}/{{y}}/{{x}}', {{
+          maxZoom: 18,
+          attribution: 'Tiles &copy; Esri'
         }}).addTo(map);
         if (points.points.length > 0) {{
           const bounds = [];
           points.points.forEach((point) => {{
-            const marker = L.marker([point.lat, point.lng]).addTo(map);
+            const marker = L.circleMarker([point.lat, point.lng], {{
+              radius: 8,
+              weight: 2,
+              color: '#fb7185',
+              fillColor: '#f97316',
+              fillOpacity: 0.88
+            }}).addTo(map);
             marker.bindPopup(`<strong>${{point.label}}</strong><br/>${{point.precision}}<br/>posts: ${{point.observed_count}}<br/>${{point.provenance}}`);
             bounds.push([point.lat, point.lng]);
           }});

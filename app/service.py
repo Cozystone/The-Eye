@@ -603,6 +603,32 @@ def seed_demo_subject() -> Subject:
     return subject
 
 
+def get_or_create_subject_by_handle(handle: str) -> Subject:
+    normalized = handle.strip().lstrip("@").lower()
+    if not normalized:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Handle is required")
+
+    existing = next((subject for subject in store.subjects.values() if subject.handle.lower() == normalized), None)
+    if existing is not None:
+        if normalized in {"citysignals.media", "demo", "sample"} and not store.subject_sources[existing.subject_id]:
+            _populate_demo_subject(existing.subject_id)
+        return existing
+
+    display_name = normalized.replace(".", " ").replace("_", " ").title()
+    subject = create_subject(
+        SubjectCreate(
+            handle=normalized,
+            display_name=display_name or normalized,
+            subject_type="public_account",
+            processing_basis=ProcessingBasis.PUBLIC_MONITORING,
+            notes="Workspace created from handle lookup.",
+        )
+    )
+    if normalized in {"citysignals.media", "demo", "sample"}:
+        _populate_demo_subject(subject.subject_id)
+    return subject
+
+
 def _populate_demo_subject(subject_id: str) -> None:
     if store.subject_sources[subject_id]:
         return
